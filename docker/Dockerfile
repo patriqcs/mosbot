@@ -12,6 +12,8 @@ RUN pnpm fetch
 
 FROM deps AS build
 WORKDIR /app
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 # Rebuild native modules need toolchain
 RUN apk add --no-cache python3 make g++ sqlite-dev
 COPY . .

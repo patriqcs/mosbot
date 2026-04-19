@@ -60,7 +60,7 @@ export const Layout = (): JSX.Element => {
           <LogOut className="mr-2 h-4 w-4" /> Log out
         </Button>
       </aside>
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 p-6 overflow-y-auto flex flex-col">
         {disconnected.length > 0 && (
           <div className="mb-4 flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             <AlertTriangle className="h-5 w-5 shrink-0" />
@@ -81,7 +81,13 @@ export const Layout = (): JSX.Element => {
             </Link>
           </div>
         )}
-        <Outlet />
+        <div className="flex-1">
+          <Outlet />
+        </div>
+        <footer className="mt-6 pt-4 border-t text-xs text-muted-foreground flex justify-between">
+          <span>MOSBot</span>
+          <span>v{__APP_VERSION__}</span>
+        </footer>
       </main>
     </div>
   );
