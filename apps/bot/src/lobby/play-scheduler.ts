@@ -29,11 +29,11 @@ export class PlayScheduler {
   async schedule(channel: string, distinctUsers: number): Promise<PlayOutcome> {
     const { chat, bucket, detector, timerGuard, bus, accountName } = this.deps;
     if (detector.isOnCooldown(channel)) return 'cooldown';
-    const gate = timerGuard.canSend(channel);
+    const gate = timerGuard.canSend();
     if (!gate.allowed) {
       this.logger.warn(
         { channel, activeTimers: gate.activeCount },
-        'marbles 3-stream timer limit reached, dropping !play',
+        'marbles timer limit reached (3 active), dropping !play',
       );
       return 'timer-limit';
     }
@@ -49,6 +49,10 @@ export class PlayScheduler {
     }
     detector.markSent(channel);
     timerGuard.record(channel);
+    this.logger.info(
+      { channel, activeTimers: timerGuard.active().length },
+      '!play sent, timer started',
+    );
     bus.emit({
       type: 'lobby-open',
       at: new Date().toISOString(),
