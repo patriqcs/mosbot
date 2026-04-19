@@ -2,9 +2,10 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately to **patrick.laustroer@googlemail.com**
-(or via GitHub's private vulnerability reporting on this repository).
-Include a minimal reproduction and any relevant environment details.
+Please report security issues privately via GitHub's
+[private vulnerability reporting](https://github.com/patriqcs/mosbot/security/advisories/new)
+on this repository. Include a minimal reproduction and any relevant
+environment details.
 
 Do **not** open a public GitHub issue for confirmed vulnerabilities; public
 disclosure is coordinated after a fix is available.

@@ -27,6 +27,12 @@ Unraid server, alongside — **not instead of** —
 
 See [`config.example.yaml`](./config.example.yaml) for every knob.
 
+## Installation
+
+**Neu hier?** Folg der ausführlichen Schritt-für-Schritt-Anleitung:
+**[docs/INSTALL.md](./docs/INSTALL.md)** — von Twitch-App bis laufendem
+Container in ca. 15 Minuten.
+
 ## Prerequisites
 
 - An Unraid server (any recent 6.x) — **or** any Docker host.
