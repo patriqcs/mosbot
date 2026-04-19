@@ -147,7 +147,7 @@ export class Orchestrator {
     });
     chat.onMessage((channel, user, text) => {
       const trimmed = text.trim().toLowerCase();
-      if (trimmed !== '!play') return;
+      if (!/^!play(\s|$)/.test(trimmed)) return;
       if (user === runtime.userLogin.toLowerCase()) return;
       const { triggered, distinctUsers } = detector.observe(channel, user);
       if (this.deps.config.logging.chatLog) {
