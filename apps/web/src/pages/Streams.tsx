@@ -67,7 +67,16 @@ export const StreamsPage = (): JSX.Element => {
             <tbody>
               {sorted.map((s) => (
                 <tr key={s.userLogin} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-mono">{s.userLogin}</td>
+                  <td className="px-4 py-2 font-mono">
+                    <a
+                      href={`https://twitch.tv/${s.userLogin}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary hover:underline"
+                    >
+                      {s.userLogin}
+                    </a>
+                  </td>
                   <td className="px-4 py-2 text-right">{s.viewerCount.toLocaleString()}</td>
                   <td className="px-4 py-2">{s.language}</td>
                   <td className="px-4 py-2">

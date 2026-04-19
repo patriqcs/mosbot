@@ -18,6 +18,19 @@ import { Button } from '@/components/ui/button';
 
 const RANGES: StatsRange[] = ['24h', '7d', '30d'];
 
+const tooltipStyle = {
+  contentStyle: {
+    backgroundColor: 'hsl(var(--popover))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '6px',
+    color: 'hsl(var(--popover-foreground))',
+    fontSize: '12px',
+  },
+  labelStyle: { color: 'hsl(var(--popover-foreground))' },
+  itemStyle: { color: 'hsl(var(--popover-foreground))' },
+  cursor: { fill: 'hsl(var(--muted) / 0.3)' },
+};
+
 export const StatsPage = (): JSX.Element => {
   const [range, setRange] = useState<StatsRange>('24h');
   const q = useQuery({
@@ -59,7 +72,7 @@ export const StatsPage = (): JSX.Element => {
                   stroke="hsl(var(--muted-foreground))"
                 />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip />
+                <Tooltip {...tooltipStyle} />
                 <Line type="monotone" dataKey="plays" stroke="hsl(var(--primary))" />
                 <Line type="monotone" dataKey="lobbies" stroke="hsl(var(--destructive))" />
               </LineChart>
@@ -88,7 +101,7 @@ export const StatsPage = (): JSX.Element => {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
-                <Tooltip />
+                <Tooltip {...tooltipStyle} />
                 <Bar dataKey="plays" fill="hsl(var(--primary))" />
               </BarChart>
             </ResponsiveContainer>
