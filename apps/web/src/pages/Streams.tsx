@@ -75,6 +75,13 @@ export const StreamsPage = (): JSX.Element => {
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
+            <colgroup>
+              <col className="w-[40%]" />
+              <col className="w-[15%]" />
+              <col className="w-[10%]" />
+              <col className="w-[25%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <ThSort label="Streamer" f="streamer" field={field} dir={dir} onClick={toggle} />
@@ -160,8 +167,8 @@ const ThSort = ({ label, f, field, dir, onClick, align = 'left' }: ThSortProps):
         type="button"
         onClick={() => onClick(f)}
         className={`inline-flex items-center gap-1 ${
-          align === 'right' ? 'flex-row-reverse' : ''
-        } ${active ? 'text-foreground' : 'hover:text-foreground'}`}
+          active ? 'text-foreground' : 'hover:text-foreground'
+        }`}
       >
         <span>{label}</span>
         <Icon className="h-3 w-3" />
