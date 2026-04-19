@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { BotEvent } from '@mosbot/shared';
+import { eventStream } from './ws';
 
 interface EventLogEntry extends Record<string, unknown> {
   id: number;
@@ -26,3 +27,10 @@ export const useLiveStore = create<LiveState>((set) => ({
     }),
   clear: () => set({ events: [] }),
 }));
+
+let subscribed = false;
+export const ensureLiveSubscription = (): void => {
+  if (subscribed) return;
+  subscribed = true;
+  eventStream.on((ev) => useLiveStore.getState().pushEvent(ev));
+};

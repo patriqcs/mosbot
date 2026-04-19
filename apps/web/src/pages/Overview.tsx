@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Square } from 'lucide-react';
 import { api } from '@/lib/api';
 import { eventStream } from '@/lib/ws';
-import { useLiveStore } from '@/lib/store';
+import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,18 +22,17 @@ export const OverviewPage = (): JSX.Element => {
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 5_000 });
   const events = useLiveStore((s) => s.events);
-  const push = useLiveStore((s) => s.pushEvent);
 
   useEffect(() => {
+    ensureLiveSubscription();
     eventStream.connect();
     const off = eventStream.on((ev) => {
-      push(ev);
       if (ev.type === 'play-sent' || ev.type === 'discovery' || ev.type === 'auth') {
         void qc.invalidateQueries({ queryKey: ['status'] });
       }
     });
     return () => off();
-  }, [push, qc]);
+  }, [qc]);
 
   const running = status.data?.running ?? false;
   const counts = status.data?.counts ?? { streamsSeen: 0, channelsJoined: 0, playsSent: 0, lobbiesDetected: 0 };

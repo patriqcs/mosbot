@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -11,11 +11,45 @@ type SortDir = 'asc' | 'desc';
 
 const DEFAULT_FIELD: SortField = 'viewers';
 const DEFAULT_DIR: SortDir = 'desc';
+const STORAGE_KEY = 'mosbot.streams.sort';
+const VALID_FIELDS: readonly SortField[] = [
+  'streamer',
+  'viewers',
+  'lang',
+  'joined',
+  'plays',
+];
+
+const loadStoredSort = (): { field: SortField; dir: SortDir } => {
+  if (typeof window === 'undefined') return { field: DEFAULT_FIELD, dir: DEFAULT_DIR };
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { field: DEFAULT_FIELD, dir: DEFAULT_DIR };
+    const parsed = JSON.parse(raw) as { field?: unknown; dir?: unknown };
+    const field =
+      typeof parsed.field === 'string' && VALID_FIELDS.includes(parsed.field as SortField)
+        ? (parsed.field as SortField)
+        : DEFAULT_FIELD;
+    const dir: SortDir = parsed.dir === 'asc' || parsed.dir === 'desc' ? parsed.dir : DEFAULT_DIR;
+    return { field, dir };
+  } catch {
+    return { field: DEFAULT_FIELD, dir: DEFAULT_DIR };
+  }
+};
 
 export const StreamsPage = (): JSX.Element => {
   const q = useQuery({ queryKey: ['streams'], queryFn: api.streams, refetchInterval: 10_000 });
-  const [field, setField] = useState<SortField>(DEFAULT_FIELD);
-  const [dir, setDir] = useState<SortDir>(DEFAULT_DIR);
+  const initial = loadStoredSort();
+  const [field, setField] = useState<SortField>(initial.field);
+  const [dir, setDir] = useState<SortDir>(initial.dir);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ field, dir }));
+    } catch {
+      /* quota or private mode — ignore */
+    }
+  }, [field, dir]);
 
   const toggle = (f: SortField): void => {
     if (field === f) {

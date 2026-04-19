@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { eventStream } from '@/lib/ws';
-import { useLiveStore } from '@/lib/store';
+import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ export const LogsPage = (): JSX.Element => {
   const [level, setLevel] = useState<(typeof LEVELS)[number]>('info');
 
   useEffect(() => {
+    ensureLiveSubscription();
     eventStream.connect();
   }, []);
 
