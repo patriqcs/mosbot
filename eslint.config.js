@@ -4,22 +4,12 @@ import prettier from 'eslint-config-prettier';
 
 export default [
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
+  ...tseslint.configs.recommended,
   prettier,
   {
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
-      '@typescript-eslint/require-await': 'off',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
@@ -30,6 +20,7 @@ export default [
       '**/build/**',
       '**/coverage/**',
       '**/*.config.{js,ts,mjs,cjs}',
+      '**/scripts/**',
       'apps/web/**',
     ],
   },

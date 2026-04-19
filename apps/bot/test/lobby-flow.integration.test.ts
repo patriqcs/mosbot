@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
+import pino from 'pino';
 import { LobbyDetector } from '../src/lobby/lobby-detector.js';
 import { PlayScheduler } from '../src/lobby/play-scheduler.js';
 import { TokenBucket } from '../src/ratelimit/bucket.js';
 import { EventBus } from '../src/events/bus.js';
-import { pino } from 'pino';
+import type { ChatManager } from '../src/chat/chat-manager.js';
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -19,9 +20,7 @@ describe('full lobby flow: detect -> schedule -> send', () => {
       applyDiff: vi.fn(),
       connect: vi.fn(),
       disconnect: vi.fn(),
-    } as unknown as Parameters<typeof PlayScheduler.prototype.schedule>[0] extends never
-      ? never
-      : import('../src/chat/chat-manager.js').ChatManager;
+    } as unknown as ChatManager;
 
     const scheduler = new PlayScheduler({
       chat,
@@ -58,7 +57,7 @@ describe('full lobby flow: detect -> schedule -> send', () => {
     const detector = new LobbyDetector({ windowMs: 30_000, minPlayers: 1, cooldownMs: 0 });
     const bucket = new TokenBucket({ capacity: 1, refillWindowMs: 30_000 });
     bucket.tryConsume();
-    const chat = { send: vi.fn() } as unknown as import('../src/chat/chat-manager.js').ChatManager;
+    const chat = { send: vi.fn() } as unknown as ChatManager;
     const scheduler = new PlayScheduler({
       chat,
       bucket,

@@ -111,7 +111,7 @@ export class AuthManager {
   }
 
   private async pollToCompletion(accountName: string): Promise<void> {
-    let pending = this.pending.get(accountName);
+    const pending = this.pending.get(accountName);
     if (!pending) return;
     let interval = pending.intervalSeconds;
     while (this.pending.get(accountName) === pending) {
