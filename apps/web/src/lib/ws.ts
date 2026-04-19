@@ -10,6 +10,14 @@ export class EventStream {
 
   connect(): void {
     if (this.closed) return;
+    if (this.socket) {
+      const s = this.socket.readyState;
+      if (s === WebSocket.OPEN || s === WebSocket.CONNECTING) return;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const url = `${proto}://${window.location.host}/api/stream`;
     const sock = new WebSocket(url);
