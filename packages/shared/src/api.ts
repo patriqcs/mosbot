@@ -11,6 +11,14 @@ export const AccountStatus = z.object({
 });
 export type AccountStatus = z.infer<typeof AccountStatus>;
 
+export const MarblesTimerStatus = z.object({
+  account: z.string(),
+  channel: z.string(),
+  startedAt: z.string(),
+  expiresAt: z.string(),
+});
+export type MarblesTimerStatus = z.infer<typeof MarblesTimerStatus>;
+
 export const BotStatus = z.object({
   running: z.boolean(),
   startedAt: z.string().nullable(),
@@ -22,6 +30,7 @@ export const BotStatus = z.object({
     playsSent: z.number().int().nonnegative(),
     lobbiesDetected: z.number().int().nonnegative(),
   }),
+  marblesTimers: z.array(MarblesTimerStatus),
 });
 export type BotStatus = z.infer<typeof BotStatus>;
 

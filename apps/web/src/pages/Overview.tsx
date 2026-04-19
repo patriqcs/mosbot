@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Square } from 'lucide-react';
+import { Play, Square, Timer } from 'lucide-react';
 import { api } from '@/lib/api';
 import { eventStream } from '@/lib/ws';
 import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDuration, formatNumber } from '@/lib/utils';
+import type { MarblesTimerStatus } from '@mosbot/shared';
 
 const Tile = ({ label, value }: { label: string; value: string | number }): JSX.Element => (
   <Card>
@@ -75,6 +76,8 @@ export const OverviewPage = (): JSX.Element => {
         />
       </div>
 
+      <MarblesTimersCard timers={status.data?.marblesTimers ?? []} />
+
       <Card>
         <CardHeader>
           <CardTitle>Live events</CardTitle>
@@ -97,6 +100,80 @@ export const OverviewPage = (): JSX.Element => {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+const MAX_TIMERS = 3;
+
+const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.Element => {
+  const [tick, setTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const active = timers
+    .map((t) => ({ ...t, remainingMs: new Date(t.expiresAt).getTime() - tick }))
+    .filter((t) => t.remainingMs > 0)
+    .sort((a, b) => a.remainingMs - b.remainingMs);
+
+  const usedSlots = active.length;
+  const slotColor =
+    usedSlots >= MAX_TIMERS
+      ? 'destructive'
+      : usedSlots >= 2
+        ? 'secondary'
+        : 'success';
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <Timer className="h-4 w-4" />
+          Marbles Timer
+        </CardTitle>
+        <Badge variant={slotColor}>
+          {usedSlots} / {MAX_TIMERS}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        {active.length === 0 && (
+          <div className="text-muted-foreground">
+            No active timers — bot may send <code>!play</code> in up to {MAX_TIMERS} new streams.
+          </div>
+        )}
+        {active.map((t) => {
+          const totalSec = Math.max(0, Math.floor(t.remainingMs / 1000));
+          const mm = Math.floor(totalSec / 60);
+          const ss = (totalSec % 60).toString().padStart(2, '0');
+          const totalWindow = 10 * 60 + 5;
+          const pct = Math.max(0, Math.min(100, (totalSec / totalWindow) * 100));
+          return (
+            <div key={`${t.account}:${t.channel}`} className="space-y-1">
+              <div className="flex items-center justify-between">
+                <a
+                  href={`https://twitch.tv/${t.channel}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono hover:text-primary hover:underline"
+                >
+                  {t.channel}
+                </a>
+                <span className="font-mono tabular-nums">
+                  {mm}:{ss}
+                </span>
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className="h-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 };
 

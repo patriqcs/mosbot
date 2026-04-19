@@ -96,7 +96,23 @@ export class Orchestrator {
       uptimeSeconds: this.startedAt ? Math.floor((Date.now() - this.startedAt) / 1000) : 0,
       accounts,
       counts: { ...counts, channelsJoined: this.joinedChannels().size },
+      marblesTimers: this.activeMarblesTimers(),
     };
+  }
+
+  activeMarblesTimers(): Array<{ account: string; channel: string; startedAt: string; expiresAt: string }> {
+    const out: Array<{ account: string; channel: string; startedAt: string; expiresAt: string }> = [];
+    for (const b of this.bundles.values()) {
+      for (const t of b.timerGuard.active()) {
+        out.push({
+          account: b.runtime.name,
+          channel: t.channel,
+          startedAt: new Date(t.startedAt).toISOString(),
+          expiresAt: new Date(t.expiresAt).toISOString(),
+        });
+      }
+    }
+    return out;
   }
 
   latestDiscovered(): Array<{ login: string; userName: string; viewerCount: number; language: string }> {
