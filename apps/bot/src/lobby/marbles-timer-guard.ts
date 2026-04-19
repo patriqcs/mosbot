@@ -5,6 +5,9 @@ export interface MarblesTimerGuardOptions {
   now?: () => number;
   windowMs?: number;
   maxStreams?: number;
+  initial?: Iterable<readonly [string, number]>;
+  onRecord?: (channel: string, startedAt: number) => void;
+  onExpire?: (channel: string) => void;
 }
 
 export interface ActiveTimer {
@@ -18,11 +21,20 @@ export class MarblesTimerGuard {
   private readonly now: () => number;
   private readonly windowMs: number;
   private readonly maxStreams: number;
+  private readonly onRecord?: (channel: string, startedAt: number) => void;
+  private readonly onExpire?: (channel: string) => void;
 
   constructor(opts: MarblesTimerGuardOptions = {}) {
     this.now = opts.now ?? Date.now;
     this.windowMs = opts.windowMs ?? WINDOW_MS;
     this.maxStreams = opts.maxStreams ?? MAX_STREAMS;
+    if (opts.onRecord) this.onRecord = opts.onRecord;
+    if (opts.onExpire) this.onExpire = opts.onExpire;
+    if (opts.initial) {
+      for (const [ch, ts] of opts.initial) {
+        this.lastSent.set(ch.toLowerCase(), ts);
+      }
+    }
   }
 
   canSend(channel: string): { allowed: boolean; activeCount: number; reason?: 'slot-taken' } {
@@ -38,7 +50,10 @@ export class MarblesTimerGuard {
   }
 
   record(channel: string): void {
-    this.lastSent.set(channel.toLowerCase(), this.now());
+    const ch = channel.toLowerCase();
+    const ts = this.now();
+    this.lastSent.set(ch, ts);
+    this.onRecord?.(ch, ts);
   }
 
   active(): ActiveTimer[] {
@@ -53,7 +68,10 @@ export class MarblesTimerGuard {
   private purge(): void {
     const cutoff = this.now() - this.windowMs;
     for (const [k, ts] of this.lastSent) {
-      if (ts < cutoff) this.lastSent.delete(k);
+      if (ts < cutoff) {
+        this.lastSent.delete(k);
+        this.onExpire?.(k);
+      }
     }
   }
 }

@@ -208,10 +208,6 @@ export class AuthManager {
       } as unknown as AccessToken,
       ['chat'],
     );
-    const refreshed = await provider.getAccessTokenForUser(resolvedUserId, ['chat']);
-    if (!refreshed) {
-      throw new Error('could not obtain a valid access token for user');
-    }
     const rt: AccountRuntime = {
       name: accountName,
       clientId,

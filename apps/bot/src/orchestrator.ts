@@ -6,6 +6,7 @@ import { ChatManager } from './chat/chat-manager.js';
 import { LobbyDetector } from './lobby/lobby-detector.js';
 import { PlayScheduler } from './lobby/play-scheduler.js';
 import { MarblesTimerGuard } from './lobby/marbles-timer-guard.js';
+import type { MarblesTimerRepo } from './lobby/marbles-timer-repo.js';
 import { TokenBucket } from './ratelimit/bucket.js';
 import { applyFilter, diffChannels } from './chat/channel-differ.js';
 import type { EventBus } from './events/bus.js';
@@ -19,7 +20,10 @@ export interface OrchestratorDeps {
   logger: Logger;
   stats: StatsRepo;
   metrics: Metrics;
+  timerRepo: MarblesTimerRepo;
 }
+
+const MARBLES_WINDOW_MS = 12 * 60 * 1000;
 
 interface AccountBundle {
   runtime: AccountRuntime;
@@ -146,7 +150,19 @@ export class Orchestrator {
       minPlayers: this.deps.config.lobby.minPlayers,
       cooldownMs: this.deps.config.lobby.cooldownSeconds * 1000,
     });
-    const timerGuard = new MarblesTimerGuard();
+    const cutoff = Date.now() - MARBLES_WINDOW_MS;
+    const initial = this.deps.timerRepo
+      .list(runtime.name, cutoff)
+      .map((t) => [t.channel, t.startedAt] as [string, number]);
+    const timerGuard = new MarblesTimerGuard({
+      initial,
+      onRecord: (channel, startedAt) => {
+        this.deps.timerRepo.upsert(runtime.name, channel, startedAt);
+      },
+      onExpire: (channel) => {
+        this.deps.timerRepo.delete(runtime.name, channel);
+      },
+    });
     const scheduler = new PlayScheduler({
       chat,
       bucket,

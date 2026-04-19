@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS auth_events (
   at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS marbles_timers (
+  account TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  PRIMARY KEY (account, channel)
+);
+
 CREATE TABLE IF NOT EXISTS session_keys (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,

@@ -6,6 +6,7 @@ import { TokenStore } from './auth/token-store.js';
 import { AuthManager } from './auth/auth-manager.js';
 import { EventBus } from './events/bus.js';
 import { StatsRepo } from './stats/repo.js';
+import { MarblesTimerRepo } from './lobby/marbles-timer-repo.js';
 import { Metrics } from './metrics.js';
 import { Orchestrator } from './orchestrator.js';
 import { createApiServer } from './api/server.js';
@@ -28,6 +29,8 @@ const main = async (): Promise<void> => {
   const auth = new AuthManager({ store: tokenStore, bus, logger });
   const stats = new StatsRepo(sqlite);
   bus.on('auth', (ev) => stats.recordAuth(ev.account, ev.phase, ev.message));
+  const timerRepo = new MarblesTimerRepo(sqlite);
+  timerRepo.pruneBefore(Date.now() - 12 * 60 * 1000);
   const metrics = new Metrics();
 
   for (const acc of config.accounts) {
@@ -42,6 +45,7 @@ const main = async (): Promise<void> => {
     logger,
     stats,
     metrics,
+    timerRepo,
   });
 
   const sessionSecret = getOrCreateSessionSecret(sqlite);
