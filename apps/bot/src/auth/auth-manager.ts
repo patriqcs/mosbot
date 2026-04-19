@@ -78,7 +78,17 @@ export class AuthManager {
       await this.bindAccount(accountName, clientId, stored);
       return true;
     } catch (err) {
-      this.logger.warn({ account: accountName, err }, 'failed to restore account');
+      this.logger.error(
+        { account: accountName, err, hint: 'log in again via dashboard → Accounts' },
+        'failed to restore account — token refresh likely rejected by Twitch',
+      );
+      this.emit({
+        type: 'auth',
+        at: new Date().toISOString(),
+        account: accountName,
+        phase: 'failure',
+        message: `restore failed: ${(err as Error).message}`,
+      });
       return false;
     }
   }
@@ -198,6 +208,10 @@ export class AuthManager {
       } as unknown as AccessToken,
       ['chat'],
     );
+    const refreshed = await provider.getAccessTokenForUser(resolvedUserId, ['chat']);
+    if (!refreshed) {
+      throw new Error('could not obtain a valid access token for user');
+    }
     const rt: AccountRuntime = {
       name: accountName,
       clientId,

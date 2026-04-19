@@ -1,5 +1,16 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, Cog, KeyRound, ListOrdered, LogOut, Radio, Tv } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Cog,
+  KeyRound,
+  ListOrdered,
+  LogOut,
+  Radio,
+  Tv,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
@@ -15,6 +26,8 @@ const NAV = [
 
 export const Layout = (): JSX.Element => {
   const nav = useNavigate();
+  const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 10_000 });
+  const disconnected = (status.data?.accounts ?? []).filter((a) => a.enabled && !a.loggedIn);
   const logout = async (): Promise<void> => {
     await api.logout();
     nav('/login');
@@ -48,6 +61,26 @@ export const Layout = (): JSX.Element => {
         </Button>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
+        {disconnected.length > 0 && (
+          <div className="mb-4 flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <div className="flex-1">
+              <span className="font-semibold">
+                {disconnected.length === 1
+                  ? `Account "${disconnected[0]!.name}" is not connected.`
+                  : `${disconnected.length} accounts are not connected.`}
+              </span>{' '}
+              Twitch rejected the stored token or it was never established. Re-authorize via the
+              Accounts page.
+            </div>
+            <Link
+              to="/accounts"
+              className="shrink-0 rounded-md border border-destructive/60 px-3 py-1 font-medium hover:bg-destructive hover:text-destructive-foreground"
+            >
+              Fix now
+            </Link>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>
