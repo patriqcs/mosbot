@@ -14,6 +14,7 @@ interface EditableConfig {
     maxStreams: number;
     minViewers: number;
     language: string | null;
+    sortBy: 'most-viewers' | 'least-viewers';
   };
   lobby: {
     windowSeconds: number;
@@ -216,6 +217,28 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             value={config.discovery.language ?? ''}
             onChange={(v) => update('discovery', { language: v.trim() === '' ? null : v })}
           />
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              Prefer
+              <FieldHelp text="'Most viewers' picks the top-N streams ranked by viewer count (fastest, default). 'Least viewers' picks the smallest streams above the Min-viewers floor — useful for smaller communities where !play competition is lower. Changing this takes effect on the next Discovery interval." />
+            </label>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant={config.discovery.sortBy === 'most-viewers' ? 'default' : 'outline'}
+                onClick={() => update('discovery', { sortBy: 'most-viewers' })}
+              >
+                Most viewers
+              </Button>
+              <Button
+                size="sm"
+                variant={config.discovery.sortBy === 'least-viewers' ? 'default' : 'outline'}
+                onClick={() => update('discovery', { sortBy: 'least-viewers' })}
+              >
+                Least viewers
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -113,7 +113,8 @@ schema). The YAML file supports `${ENV_VAR}` interpolation.
 | `discovery` | `intervalMinutes` | 3 | Helix poll cadence |
 | `discovery` | `maxStreams` | 20 | Upper bound on tracked channels |
 | `discovery` | `minViewers` | 30 | Skip streams below this count |
-| `discovery` | `language` | `null` | ISO code or any |
+| `discovery` | `language` | `null` | ISO code(s), comma-separated (e.g. `de,en`), or `null` for any |
+| `discovery` | `sortBy` | `most-viewers` | `most-viewers` or `least-viewers` |
 | `lobby` | `windowSeconds` | 30 | Rolling-window size |
 | `lobby` | `minPlayers` | 4 | Distinct users to trigger |
 | `lobby` | `cooldownSeconds` | 180 | Per-channel cooldown |

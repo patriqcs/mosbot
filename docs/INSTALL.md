@@ -163,6 +163,7 @@ discovery:
   maxStreams: 20
   minViewers: 30
   language: null            # "en", "de", or CSV like "de,en"; null = any
+  sortBy: most-viewers      # "most-viewers" (big streams) or "least-viewers" (small streams)
 
 lobby:
   windowSeconds: 30

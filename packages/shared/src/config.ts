@@ -9,6 +9,7 @@ export const DiscoveryConfig = z.object({
     .regex(/^[a-zA-Z]{2,3}(\s*,\s*[a-zA-Z]{2,3})*$/, 'expected ISO codes, e.g. "en" or "de,en"')
     .nullable()
     .default(null),
+  sortBy: z.enum(['most-viewers', 'least-viewers']).default('most-viewers'),
 });
 
 export const LobbyConfig = z.object({

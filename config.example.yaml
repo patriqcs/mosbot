@@ -6,6 +6,7 @@ discovery:
   maxStreams: 20            # upper bound on channels we track at any time
   minViewers: 30            # skip streams below this viewer count
   language: null            # ISO code(s) — "en", "de", or CSV "de,en"; null = any
+  sortBy: most-viewers      # "most-viewers" (default) or "least-viewers"
 
 lobby:
   windowSeconds: 30         # rolling window for distinct !play messages

@@ -76,7 +76,7 @@ export class Discovery {
 
   async fetchLiveStreams(): Promise<StreamInfo[]> {
     const gameId = await this.resolveGameId();
-    const { maxStreams, minViewers, language } = this.deps.config;
+    const { maxStreams, minViewers, language, sortBy } = this.deps.config;
     const collected: StreamInfo[] = [];
     let cursor: string | null = null;
     for (let guard = 0; guard < 10; guard++) {
@@ -91,15 +91,24 @@ export class Discovery {
         data: HelixStreamRaw[];
         pagination: { cursor?: string };
       }>(`/streams?${params.toString()}`);
+      let reachedFloor = false;
       for (const s of json.data) {
-        if (s.viewer_count < minViewers) return this.done(collected);
+        if (s.viewer_count < minViewers) {
+          reachedFloor = true;
+          break;
+        }
         collected.push(toStreamInfo(s));
-        if (collected.length >= maxStreams) return this.done(collected);
       }
+      if (reachedFloor) break;
       cursor = json.pagination.cursor ?? null;
       if (!cursor || json.data.length === 0) break;
+      if (sortBy === 'most-viewers' && collected.length >= maxStreams) break;
     }
-    return this.done(collected);
+    const sorted =
+      sortBy === 'least-viewers'
+        ? [...collected].sort((a, b) => a.viewerCount - b.viewerCount)
+        : collected;
+    return this.done(sorted.slice(0, maxStreams));
   }
 
   private done(collected: StreamInfo[]): StreamInfo[] {
