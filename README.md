@@ -49,11 +49,25 @@ Container in ca. 15 Minuten.
 
 ### Path A — Unraid Community Applications (recommended)
 
-1. In Unraid: **Apps → Add Container → Template URL** and paste:
+1. **Register a Twitch Developer App and copy the Client ID:**
+   1. Open <https://dev.twitch.tv/console/apps> and sign in with any
+      Twitch account (the Client ID is not tied to the bot account).
+   2. Click **Register Your Application** and fill in:
+      - **Name**: free choice (e.g. `MOSBot Personal`), must be unique
+        across all Twitch apps.
+      - **OAuth Redirect URLs**: `http://localhost` — Device Code Flow
+        does not use this URL, but the field is required.
+      - **Category**: `Chat Bot`
+      - **Client Type**: `Confidential`
+   3. Click **Create** → back in the list, click **Manage** next to your
+      app → copy the **Client ID** (30-character hex string).
+      You do **not** need a Client Secret; MOSBot uses Device Code Flow.
+   4. Save this Client ID for the `TWITCH_CLIENT_ID` field below.
+2. In Unraid: **Apps → Add Container → Template URL** and paste:
    ```
    https://raw.githubusercontent.com/patriqcs/mosbot/main/unraid/mosbot.xml
    ```
-2. Generate secrets (run on any Docker host):
+3. Generate secrets (run on any Docker host):
    ```sh
    # 32-byte base64 encryption key:
    docker run --rm node:20-alpine node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
@@ -61,14 +75,17 @@ Container in ca. 15 Minuten.
    # Dashboard password hash (argon2id):
    docker run --rm -it node:20-alpine sh -c "npm i -g argon2-cli >/dev/null && argon2-cli hash -p 'your-password'"
    ```
-3. Paste `TWITCH_CLIENT_ID`, `ENCRYPTION_KEY`, and `DASHBOARD_PASSWORD_HASH`
-   into the template and click **Apply**.
-4. Drop a `config.yaml` into `/mnt/user/appdata/mosbot/config/` (copy
+4. Paste `TWITCH_CLIENT_ID` (from step 1), `ENCRYPTION_KEY`, and
+   `DASHBOARD_PASSWORD_HASH` into the template and click **Apply**.
+5. Drop a `config.yaml` into `/mnt/user/appdata/mosbot/config/` (copy
    `config.example.yaml` as a starting point).
-5. Open `http://<unraid-ip>:8787`, log in, go to **Accounts → primary →
+6. Open `http://<unraid-ip>:8787`, log in, go to **Accounts → primary →
    Login**, enter the 6-digit code on
    `https://twitch.tv/activate`, and approve. The bot reports
    *online* within 10 seconds; discovery starts on the next interval.
+
+> For a fully detailed walkthrough in German with troubleshooting, see
+> [docs/INSTALL.md](./docs/INSTALL.md).
 
 Placeholder for screenshots once you take them:
 
