@@ -55,7 +55,7 @@ export const OverviewPage = (): JSX.Element => {
           <Button
             onClick={toggle}
             variant={running ? 'destructive' : 'success'}
-            className="h-auto rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            className="h-auto rounded-full border border-transparent px-2.5 py-0.5 text-xs font-semibold"
           >
             {running ? (
               <>
