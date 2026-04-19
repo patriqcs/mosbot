@@ -74,6 +74,17 @@ export class StatsRepo {
       .run(account, phase, message ?? null, Date.now());
   }
 
+  pruneChatBefore(cutoffMs: number): number {
+    const info = this.db
+      .prepare('DELETE FROM chat_messages WHERE at < ?')
+      .run(cutoffMs);
+    return info.changes;
+  }
+
+  vacuum(): void {
+    this.db.exec('VACUUM');
+  }
+
   counts(): StatsCounts {
     const streams = this.db.prepare('SELECT COUNT(*) AS c FROM streams_seen').get() as {
       c: number;

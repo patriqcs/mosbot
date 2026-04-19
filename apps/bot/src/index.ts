@@ -70,6 +70,37 @@ const main = async (): Promise<void> => {
     logger.warn('no authorized accounts — waiting for dashboard login');
   }
 
+  const HOUR_MS = 60 * 60 * 1000;
+  const DAY_MS = 24 * HOUR_MS;
+
+  const runPrune = (): void => {
+    try {
+      const cutoff = Date.now() - config.logging.chatLogRetentionDays * DAY_MS;
+      const removed = stats.pruneChatBefore(cutoff);
+      if (removed > 0) {
+        logger.info(
+          { removed, retentionDays: config.logging.chatLogRetentionDays },
+          'chat messages pruned',
+        );
+      }
+    } catch (err) {
+      logger.warn({ err }, 'chat prune failed');
+    }
+  };
+  runPrune();
+  const pruneTimer = setInterval(runPrune, HOUR_MS);
+  pruneTimer.unref();
+
+  const vacuumTimer = setInterval(() => {
+    try {
+      stats.vacuum();
+      logger.info('database vacuumed');
+    } catch (err) {
+      logger.warn({ err }, 'vacuum failed');
+    }
+  }, DAY_MS);
+  vacuumTimer.unref();
+
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'shutdown initiated');
     const timer = setTimeout(() => {
@@ -77,6 +108,8 @@ const main = async (): Promise<void> => {
       process.exit(1);
     }, 10_000);
     try {
+      clearInterval(pruneTimer);
+      clearInterval(vacuumTimer);
       await orchestrator.stop();
       await app.close();
       sqlite.close();

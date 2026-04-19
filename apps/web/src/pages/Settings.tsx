@@ -32,6 +32,7 @@ interface EditableConfig {
     level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     rotateDays: number;
     chatLog: boolean;
+    chatLogRetentionDays: number;
   };
 }
 
@@ -308,6 +309,14 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             help="Store every observed chat message into the SQLite database for stats and retrospective analysis. Off = stats still count !play events but individual messages are not kept."
             value={config.logging.chatLog}
             onChange={(v) => update('logging', { chatLog: v })}
+          />
+          <LabeledNumber
+            label="Chat log retention (days)"
+            help="Chat rows older than this many days are deleted every hour. A VACUUM runs every 24 h to reclaim disk space. Default 14. Only relevant when 'Persist chat messages' is enabled."
+            value={config.logging.chatLogRetentionDays}
+            min={1}
+            max={365}
+            onChange={(v) => update('logging', { chatLogRetentionDays: v })}
           />
         </CardContent>
       </Card>

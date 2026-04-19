@@ -41,9 +41,10 @@ server:
     passwordHash: ${DASHBOARD_PASSWORD_HASH}
 
 logging:
-  level: info               # trace | debug | info | warn | error
-  rotateDays: 14
-  chatLog: true             # persist observed chat messages to SQLite
+  level: info                   # trace | debug | info | warn | error
+  rotateDays: 14                # log-file rotation (pino-roll)
+  chatLog: true                 # persist observed chat messages to SQLite
+  chatLogRetentionDays: 14      # prune chat rows older than this each hour
 
 database:
   path: /data/mosbot.db

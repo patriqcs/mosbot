@@ -42,6 +42,7 @@ export const LoggingConfig = z.object({
   level: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   rotateDays: z.number().int().min(1).max(365).default(14),
   chatLog: z.boolean().default(true),
+  chatLogRetentionDays: z.number().int().min(1).max(365).default(14),
 });
 
 export const DatabaseConfig = z.object({
