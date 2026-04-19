@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import type { StatsRange } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { formatTime, formatTimestamp } from '@/lib/utils';
 
 const RANGES: StatsRange[] = ['24h', '7d', '30d'];
 
@@ -68,11 +69,14 @@ export const StatsPage = (): JSX.Element => {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="at"
-                  tickFormatter={(v: string) => v.slice(11, 16)}
+                  tickFormatter={(v: string) => (range === '24h' ? formatTime(v) : formatTimestamp(v))}
                   stroke="hsl(var(--muted-foreground))"
                 />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip {...tooltipStyle} />
+                <Tooltip
+                  {...tooltipStyle}
+                  labelFormatter={(v) => formatTimestamp(String(v))}
+                />
                 <Line type="monotone" dataKey="plays" stroke="hsl(var(--primary))" />
                 <Line type="monotone" dataKey="lobbies" stroke="hsl(var(--destructive))" />
               </LineChart>

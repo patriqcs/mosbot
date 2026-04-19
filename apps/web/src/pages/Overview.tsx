@@ -7,7 +7,7 @@ import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatDuration, formatNumber } from '@/lib/utils';
+import { formatDuration, formatNumber, formatTimestamp } from '@/lib/utils';
 import type { MarblesTimerStatus } from '@mosbot/shared';
 
 const Tile = ({ label, value }: { label: string; value: string | number }): JSX.Element => (
@@ -93,7 +93,7 @@ export const OverviewPage = (): JSX.Element => {
             )}
             {events.slice(0, 100).map((e) => (
               <div key={e.id} className="flex items-center gap-2 whitespace-nowrap">
-                <span className="shrink-0 text-muted-foreground">{e.event.at.slice(11, 19)}</span>
+                <span className="shrink-0 text-muted-foreground">{formatTimestamp(e.event.at)}</span>
                 <Badge variant="outline" className="shrink-0">
                   {e.event.type}
                 </Badge>

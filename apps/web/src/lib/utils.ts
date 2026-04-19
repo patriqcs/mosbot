@@ -13,3 +13,17 @@ export const formatDuration = (seconds: number): string => {
 };
 
 export const formatNumber = (n: number): string => n.toLocaleString('en-US');
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+export const formatTimestamp = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${pad(d.getFullYear() % 100)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+export const formatTime = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};

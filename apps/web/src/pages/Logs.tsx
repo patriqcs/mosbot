@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { BotEvent } from '@mosbot/shared';
+import { formatTimestamp } from '@/lib/utils';
 
 const LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const;
 type Level = (typeof LEVELS)[number];
@@ -103,7 +104,7 @@ export const LogsPage = (): JSX.Element => {
               const lvl = levelForEvent(e.event);
               return (
                 <div key={e.id} className="whitespace-pre-wrap break-words">
-                  <span className="text-muted-foreground">{e.event.at}</span>{' '}
+                  <span className="text-muted-foreground">{formatTimestamp(e.event.at)}</span>{' '}
                   <span className={`font-semibold uppercase ${levelColor(lvl)}`}>{lvl}</span>{' '}
                   <span className="font-semibold">[{e.event.type}]</span>{' '}
                   {JSON.stringify(e.event)}
