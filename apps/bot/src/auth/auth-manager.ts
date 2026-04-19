@@ -177,6 +177,14 @@ export class AuthManager {
     clientId: string,
     token: StoredToken,
   ): Promise<void> {
+    let resolvedUserId = token.userId;
+    let resolvedUserLogin = token.userLogin;
+    if (!resolvedUserId || !resolvedUserLogin) {
+      const me = await this.resolveUser(clientId, token.accessToken);
+      resolvedUserId = me.id;
+      resolvedUserLogin = me.login;
+    }
+
     const provider = new RefreshingAuthProvider({
       clientId,
       clientSecret: '',
@@ -185,28 +193,26 @@ export class AuthManager {
     provider.onRefresh((_, refreshed) => {
       this.persistRefresh(accountName, refreshed);
     });
-    const userIdPlaceholder = token.userId ?? 'pending';
     await provider.addUserForToken(
       {
         ...toAccessToken(token),
-        userId: userIdPlaceholder,
+        userId: resolvedUserId,
       } as unknown as AccessToken,
       ['chat'],
     );
     const api = new ApiClient({ authProvider: provider });
-    const user = await api.users.getAuthenticatedUser(userIdPlaceholder);
     const rt: AccountRuntime = {
       name: accountName,
       clientId,
       provider,
       api,
-      userId: user.id,
-      userLogin: user.name,
+      userId: resolvedUserId,
+      userLogin: resolvedUserLogin,
     };
     this.accounts.set(accountName, rt);
-    const updated: StoredToken = { ...token, userId: user.id, userLogin: user.name };
+    const updated: StoredToken = { ...token, userId: resolvedUserId, userLogin: resolvedUserLogin };
     this.store.save(accountName, updated);
-    this.logger.info({ account: accountName, user: user.name }, 'account authorized');
+    this.logger.info({ account: accountName, user: resolvedUserLogin }, 'account authorized');
   }
 
   private persistRefresh(accountName: string, access: AccessToken): void {
@@ -232,6 +238,25 @@ export class AuthManager {
 
   private emit(ev: AuthEvent): void {
     this.bus.emit(ev);
+  }
+
+  private async resolveUser(
+    clientId: string,
+    accessToken: string,
+  ): Promise<{ id: string; login: string }> {
+    const res = await fetch('https://api.twitch.tv/helix/users', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Client-Id': clientId,
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`helix/users ${res.status}: ${await res.text()}`);
+    }
+    const json = (await res.json()) as { data?: Array<{ id: string; login: string }> };
+    const first = json.data?.[0];
+    if (!first) throw new Error('helix/users returned no user');
+    return { id: first.id, login: first.login };
   }
 
   logout(accountName: string): void {
