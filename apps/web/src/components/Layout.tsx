@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   Cog,
+  Github,
   KeyRound,
   ListOrdered,
   LogOut,
@@ -84,9 +85,27 @@ export const Layout = (): JSX.Element => {
         <div className="flex-1">
           <Outlet />
         </div>
-        <footer className="mt-6 pt-4 border-t text-xs text-muted-foreground flex justify-between">
-          <span>MOSBot</span>
-          <span>v{__APP_VERSION__}</span>
+        <footer className="mt-6 pt-4 border-t text-xs text-muted-foreground flex justify-between items-center">
+          <span>
+            MOSBot · built by{' '}
+            <a
+              href="https://github.com/patriqcs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium hover:text-foreground hover:underline underline-offset-4"
+            >
+              patriQ
+            </a>
+          </span>
+          <a
+            href="https://github.com/patriqcs/mosbot"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 hover:text-foreground"
+          >
+            <Github className="h-3.5 w-3.5" />
+            v{__APP_VERSION__}
+          </a>
         </footer>
       </main>
     </div>
