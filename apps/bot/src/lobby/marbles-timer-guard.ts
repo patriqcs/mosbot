@@ -1,62 +1,59 @@
 const WINDOW_MS = 10 * 60 * 1000 + 5_000;
-const MAX_ACTIVE = 3;
+const MAX_STREAMS = 3;
 
 export interface MarblesTimerGuardOptions {
   now?: () => number;
   windowMs?: number;
-  maxActive?: number;
+  maxStreams?: number;
 }
 
 export interface ActiveTimer {
+  channel: string;
   startedAt: number;
   expiresAt: number;
-  channel?: string;
-}
-
-interface Entry {
-  startedAt: number;
-  channel?: string;
 }
 
 export class MarblesTimerGuard {
-  private readonly entries: Entry[] = [];
+  private readonly lastSent = new Map<string, number>();
   private readonly now: () => number;
   private readonly windowMs: number;
-  private readonly maxActive: number;
+  private readonly maxStreams: number;
 
   constructor(opts: MarblesTimerGuardOptions = {}) {
     this.now = opts.now ?? Date.now;
     this.windowMs = opts.windowMs ?? WINDOW_MS;
-    this.maxActive = opts.maxActive ?? MAX_ACTIVE;
+    this.maxStreams = opts.maxStreams ?? MAX_STREAMS;
   }
 
-  canSend(): { allowed: boolean; activeCount: number } {
+  canSend(channel: string): { allowed: boolean; activeCount: number; reason?: 'slot-taken' } {
+    const ch = channel.toLowerCase();
     this.purge();
-    return {
-      allowed: this.entries.length < this.maxActive,
-      activeCount: this.entries.length,
-    };
+    if (this.lastSent.has(ch)) {
+      return { allowed: true, activeCount: this.lastSent.size };
+    }
+    if (this.lastSent.size >= this.maxStreams) {
+      return { allowed: false, activeCount: this.lastSent.size, reason: 'slot-taken' };
+    }
+    return { allowed: true, activeCount: this.lastSent.size };
   }
 
-  record(channel?: string): void {
-    const entry: Entry = { startedAt: this.now() };
-    if (channel) entry.channel = channel;
-    this.entries.push(entry);
+  record(channel: string): void {
+    this.lastSent.set(channel.toLowerCase(), this.now());
   }
 
   active(): ActiveTimer[] {
     this.purge();
-    return this.entries.map((e) => ({
-      startedAt: e.startedAt,
-      expiresAt: e.startedAt + this.windowMs,
-      ...(e.channel ? { channel: e.channel } : {}),
+    return [...this.lastSent.entries()].map(([channel, startedAt]) => ({
+      channel,
+      startedAt,
+      expiresAt: startedAt + this.windowMs,
     }));
   }
 
   private purge(): void {
     const cutoff = this.now() - this.windowMs;
-    while (this.entries.length > 0 && this.entries[0]!.startedAt < cutoff) {
-      this.entries.shift();
+    for (const [k, ts] of this.lastSent) {
+      if (ts < cutoff) this.lastSent.delete(k);
     }
   }
 }
