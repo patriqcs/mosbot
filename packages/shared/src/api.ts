@@ -22,12 +22,6 @@ export const BotStatus = z.object({
     playsSent: z.number().int().nonnegative(),
     lobbiesDetected: z.number().int().nonnegative(),
   }),
-  coexistence: z
-    .object({
-      minerDetected: z.boolean(),
-      minerRecentChatSends: z.number().int().nonnegative(),
-    })
-    .nullable(),
 });
 export type BotStatus = z.infer<typeof BotStatus>;
 

@@ -24,13 +24,6 @@ interface EditableConfig {
     userChatBudgetPer30s: number;
     verifiedBot: boolean;
   };
-  coexistence?: {
-    pointsMiner?: {
-      enabled: boolean;
-      dockerContainerName: string;
-      appdataPath: string;
-    };
-  };
   channels: {
     whitelist: string[];
     blacklist: string[];
@@ -339,60 +332,6 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         </CardContent>
       </Card>
 
-      {config.coexistence?.pointsMiner && (
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Coexistence (Points Miner)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <LabeledCheckbox
-              label="Enabled"
-              help="Watch the specified points-miner container and back off chat sends if it chatted recently on the same account — so we never exceed Twitch chat limits when both processes share one account."
-              value={config.coexistence.pointsMiner.enabled}
-              onChange={(v) =>
-                onChange({
-                  ...config,
-                  coexistence: {
-                    ...config.coexistence,
-                    pointsMiner: { ...config.coexistence!.pointsMiner!, enabled: v },
-                  },
-                })
-              }
-            />
-            <LabeledText
-              label="Docker container name"
-              help="Name of the points-miner Docker container on this host (e.g. 'twitch-miner'). Used to detect if the miner is running."
-              value={config.coexistence.pointsMiner.dockerContainerName}
-              onChange={(v) =>
-                onChange({
-                  ...config,
-                  coexistence: {
-                    ...config.coexistence,
-                    pointsMiner: {
-                      ...config.coexistence!.pointsMiner!,
-                      dockerContainerName: v,
-                    },
-                  },
-                })
-              }
-            />
-            <LabeledText
-              label="Appdata path"
-              help="Host path where the points miner keeps its logs (e.g. /mnt/user/appdata/twitch-miner). The bot parses these to see recent chat sends for back-off decisions."
-              value={config.coexistence.pointsMiner.appdataPath}
-              onChange={(v) =>
-                onChange({
-                  ...config,
-                  coexistence: {
-                    ...config.coexistence,
-                    pointsMiner: { ...config.coexistence!.pointsMiner!, appdataPath: v },
-                  },
-                })
-              }
-            />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

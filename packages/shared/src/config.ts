@@ -18,16 +18,6 @@ export const RateLimitConfig = z.object({
   verifiedBot: z.boolean().default(false),
 });
 
-export const CoexistenceConfig = z.object({
-  pointsMiner: z
-    .object({
-      enabled: z.boolean().default(true),
-      dockerContainerName: z.string().default('twitch-miner'),
-      appdataPath: z.string().default('/mnt/user/appdata/twitch-miner'),
-    })
-    .default({}),
-});
-
 export const ChannelsConfig = z.object({
   whitelist: z.array(z.string()).default([]),
   blacklist: z.array(z.string()).default([]),
@@ -62,7 +52,6 @@ export const AppConfig = z.object({
   discovery: DiscoveryConfig,
   lobby: LobbyConfig,
   ratelimit: RateLimitConfig,
-  coexistence: CoexistenceConfig.default({}),
   channels: ChannelsConfig,
   accounts: z.array(AccountConfig).min(1),
   server: ServerConfig,
@@ -74,7 +63,6 @@ export type AppConfig = z.infer<typeof AppConfig>;
 export type DiscoveryConfig = z.infer<typeof DiscoveryConfig>;
 export type LobbyConfig = z.infer<typeof LobbyConfig>;
 export type RateLimitConfig = z.infer<typeof RateLimitConfig>;
-export type CoexistenceConfig = z.infer<typeof CoexistenceConfig>;
 export type ChannelsConfig = z.infer<typeof ChannelsConfig>;
 export type AccountConfig = z.infer<typeof AccountConfig>;
 export type ServerConfig = z.infer<typeof ServerConfig>;

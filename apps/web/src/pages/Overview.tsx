@@ -77,24 +77,6 @@ export const OverviewPage = (): JSX.Element => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Coexistence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {status.data?.coexistence ? (
-            <div className="text-sm">
-              Channel-Points-Miner detected:{' '}
-              <Badge variant={status.data.coexistence.minerDetected ? 'success' : 'outline'}>
-                {status.data.coexistence.minerDetected ? 'yes' : 'no'}
-              </Badge>
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">disabled</div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Live events</CardTitle>
         </CardHeader>
         <CardContent>

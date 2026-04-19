@@ -9,7 +9,6 @@ import { TokenBucket } from './ratelimit/bucket.js';
 import { applyFilter, diffChannels } from './chat/channel-differ.js';
 import type { EventBus } from './events/bus.js';
 import type { StatsRepo } from './stats/repo.js';
-import type { MinerProbe } from './coexistence/miner-probe.js';
 import type { Metrics } from './metrics.js';
 
 export interface OrchestratorDeps {
@@ -18,7 +17,6 @@ export interface OrchestratorDeps {
   bus: EventBus;
   logger: Logger;
   stats: StatsRepo;
-  miner: MinerProbe;
   metrics: Metrics;
 }
 
@@ -89,14 +87,12 @@ export class Orchestrator {
         };
       }),
     );
-    const coex = await this.deps.miner.probe();
     return {
       running: this.running,
       startedAt: this.startedAt ? new Date(this.startedAt).toISOString() : null,
       uptimeSeconds: this.startedAt ? Math.floor((Date.now() - this.startedAt) / 1000) : 0,
       accounts,
       counts: this.deps.stats.counts(),
-      coexistence: coex,
     };
   }
 

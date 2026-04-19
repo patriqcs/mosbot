@@ -19,12 +19,6 @@ ratelimit:
   userChatBudgetPer30s: 16
   verifiedBot: false
 
-coexistence:
-  pointsMiner:
-    enabled: true
-    dockerContainerName: twitch-miner
-    appdataPath: /mnt/user/appdata/twitch-miner
-
 channels:
   # If whitelist is non-empty, ONLY these logins are ever joined. Case-insensitive.
   whitelist: []
