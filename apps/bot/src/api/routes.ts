@@ -29,7 +29,7 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
       db: 'up',
       accounts: deps.auth.all().map((a) => ({ name: a.name, user: a.userLogin })),
       uptime: Math.floor(process.uptime()),
-      counts,
+      counts: { ...counts, channelsJoined: deps.orchestrator.joinedChannels().size },
     };
   });
 

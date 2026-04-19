@@ -87,12 +87,13 @@ export class Orchestrator {
         };
       }),
     );
+    const counts = this.deps.stats.counts();
     return {
       running: this.running,
       startedAt: this.startedAt ? new Date(this.startedAt).toISOString() : null,
       uptimeSeconds: this.startedAt ? Math.floor((Date.now() - this.startedAt) / 1000) : 0,
       accounts,
-      counts: this.deps.stats.counts(),
+      counts: { ...counts, channelsJoined: this.joinedChannels().size },
     };
   }
 
