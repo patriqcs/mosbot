@@ -42,8 +42,8 @@ describe('TokenStore', () => {
     store.save('a', {
       accessToken: 'x',
       refreshToken: 'y',
-      expiresAt: 1,
-      obtainedAt: 0,
+      expiresAt: 2,
+      obtainedAt: 1,
       scopes: [],
     });
     store.clear('a');
