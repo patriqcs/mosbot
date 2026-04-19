@@ -50,3 +50,4 @@ yarn-error.log*
 docs/screenshots/*
 !docs/screenshots/.gitkeep
 !docs/screenshots/README.md
+1.png
