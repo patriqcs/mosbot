@@ -1,4 +1,4 @@
-const WINDOW_MS = 10 * 60 * 1000 + 5_000;
+const WINDOW_MS = 12 * 60 * 1000;
 const MAX_STREAMS = 3;
 
 export interface MarblesTimerGuardOptions {

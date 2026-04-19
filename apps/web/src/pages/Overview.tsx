@@ -146,7 +146,7 @@ const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.El
           const totalSec = Math.max(0, Math.floor(t.remainingMs / 1000));
           const mm = Math.floor(totalSec / 60);
           const ss = (totalSec % 60).toString().padStart(2, '0');
-          const totalWindow = 10 * 60 + 5;
+          const totalWindow = 12 * 60;
           const pct = Math.max(0, Math.min(100, (totalSec / totalWindow) * 100));
           return (
             <div key={`${t.account}:${t.channel}`} className="space-y-1">
