@@ -52,14 +52,18 @@ export const OverviewPage = (): JSX.Element => {
           <Badge variant={running ? 'success' : 'secondary'}>
             {running ? 'Running' : 'Stopped'}
           </Badge>
-          <Button onClick={toggle} variant={running ? 'destructive' : 'success'}>
+          <Button
+            onClick={toggle}
+            variant={running ? 'destructive' : 'success'}
+            className="h-auto rounded-full px-2.5 py-0.5 text-xs font-semibold"
+          >
             {running ? (
               <>
-                <Square className="mr-2 h-4 w-4" /> Stop
+                <Square className="mr-1 h-3 w-3" /> Stop
               </>
             ) : (
               <>
-                <Play className="mr-2 h-4 w-4" /> Start
+                <Play className="mr-1 h-3 w-3" /> Start
               </>
             )}
           </Button>
