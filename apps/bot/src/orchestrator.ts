@@ -191,12 +191,12 @@ export class Orchestrator {
         this.deps.stats.recordChat(channel, user, text);
       }
       if (!triggered) return;
+      this.deps.stats.recordLobby(channel, distinctUsers);
+      this.deps.metrics.lobbiesDetectedTotal.inc({ channel });
       void scheduler.schedule(channel, distinctUsers).then((outcome) => {
         if (outcome === 'sent') {
           this.deps.stats.recordPlay(runtime.name, channel);
-          this.deps.stats.recordLobby(channel, distinctUsers);
           this.deps.metrics.playsSentTotal.inc({ account: runtime.name, channel });
-          this.deps.metrics.lobbiesDetectedTotal.inc({ channel });
         } else if (outcome === 'throttled') {
           this.deps.metrics.rateLimitedTotal.inc({ account: runtime.name });
         } else if (outcome === 'timer-limit') {

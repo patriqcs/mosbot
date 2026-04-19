@@ -52,7 +52,7 @@ export const OverviewPage = (): JSX.Element => {
           <Badge variant={running ? 'success' : 'secondary'}>
             {running ? 'Running' : 'Stopped'}
           </Badge>
-          <Button onClick={toggle} variant={running ? 'destructive' : 'default'}>
+          <Button onClick={toggle} variant={running ? 'destructive' : 'success'}>
             {running ? (
               <>
                 <Square className="mr-2 h-4 w-4" /> Stop
