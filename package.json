@@ -25,7 +25,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
-    "prepare": "lefthook install"
+    "setup:hooks": "lefthook install"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

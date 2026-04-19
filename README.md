@@ -207,6 +207,7 @@ both bots can JOIN the same channel independently.
 
 ```sh
 pnpm install
+pnpm setup:hooks  # one-time: install lefthook pre-commit hooks
 pnpm dev          # runs bot + web concurrently
 pnpm test         # vitest (watch: pnpm --filter @mosbot/bot test:watch)
 pnpm typecheck
