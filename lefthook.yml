@@ -1,0 +1,18 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.{ts,tsx,js}"
+      run: pnpm exec eslint {staged_files}
+    format:
+      glob: "*.{ts,tsx,js,json,md,yaml,yml}"
+      run: pnpm exec prettier --check {staged_files}
+    typecheck:
+      run: pnpm typecheck
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        grep -qE '^(feat|fix|refactor|docs|test|chore|perf|ci|build|style|revert)(\(.+\))?!?: .+' {1} \
+          || (echo "Commit message must follow Conventional Commits"; exit 1)

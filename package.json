@@ -1,0 +1,40 @@
+{
+  "name": "mosbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Marbles-on-Stream auto-play bot with web dashboard",
+  "license": "MIT",
+  "author": "patriqcs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patriqcs/mosbot.git"
+  },
+  "packageManager": "pnpm@9.12.3",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "lint": "eslint . --ext .ts,.tsx,.js",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "lefthook": "^1.8.4",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

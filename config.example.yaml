@@ -1,0 +1,55 @@
+# MOSBot configuration. Copy to /config/config.yaml (Unraid) or config.yaml (local).
+# All ${VAR} tokens are substituted from environment variables at load time.
+
+discovery:
+  intervalMinutes: 3        # how often to poll Twitch Helix for live MOS streams
+  maxStreams: 20            # upper bound on channels we track at any time
+  minViewers: 30            # skip streams below this viewer count
+  language: null            # ISO code (e.g. "en", "de") or null to accept any
+
+lobby:
+  windowSeconds: 30         # rolling window for distinct !play messages
+  minPlayers: 4             # distinct other users required to trigger our !play
+  cooldownSeconds: 180      # per-channel cooldown after we send !play
+
+ratelimit:
+  # Twitch caps user-level chat at 20 msgs / 30 s. We leave a safety margin so
+  # any occasional send by the Channel-Points-Miner on the same account never
+  # pushes us over. Verified-bot accounts can raise this to 45.
+  userChatBudgetPer30s: 16
+  verifiedBot: false
+
+coexistence:
+  pointsMiner:
+    enabled: true
+    dockerContainerName: twitch-miner
+    appdataPath: /mnt/user/appdata/twitch-miner
+
+channels:
+  # If whitelist is non-empty, ONLY these logins are ever joined. Case-insensitive.
+  whitelist: []
+  blacklist:
+    - exampleStreamer
+
+accounts:
+  - name: primary
+    enabled: true
+    clientId: ${TWITCH_CLIENT_ID}
+  - name: secondary
+    enabled: false
+    clientId: ${TWITCH_CLIENT_ID}
+
+server:
+  host: 0.0.0.0
+  port: 8787
+  auth:
+    username: admin
+    passwordHash: ${DASHBOARD_PASSWORD_HASH}
+
+logging:
+  level: info               # trace | debug | info | warn | error
+  rotateDays: 14
+  chatLog: true             # persist observed chat messages to SQLite
+
+database:
+  path: /data/mosbot.db

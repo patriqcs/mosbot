@@ -1,0 +1,22 @@
+services:
+  mosbot:
+    image: ghcr.io/patriqcs/mosbot:latest
+    container_name: mosbot
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Berlin}
+      - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - /mnt/user/appdata/mosbot/config:/config
+      - /mnt/user/appdata/mosbot/data:/data
+      - /mnt/user/appdata/mosbot/logs:/logs
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
