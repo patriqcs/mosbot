@@ -140,7 +140,12 @@ export class Orchestrator {
       accountName: runtime.name,
     });
     const discovery = new Discovery({
-      api: runtime.api,
+      clientId: runtime.clientId,
+      getAccessToken: async () => {
+        const tok = await runtime.provider.getAccessTokenForUser(runtime.userId);
+        if (!tok) throw new Error(`no access token for ${runtime.name}`);
+        return tok.accessToken;
+      },
       config: this.deps.config.discovery,
       logger: this.logger,
     });
