@@ -71,12 +71,23 @@ export const StatsPage = (): JSX.Element => {
           <CardHeader>
             <CardTitle>Top channels</CardTitle>
           </CardHeader>
-          <CardContent className="h-64">
+          <CardContent className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={q.data?.topChannels ?? []}>
+              <BarChart
+                data={q.data?.topChannels ?? []}
+                margin={{ top: 8, right: 8, bottom: 56, left: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="channel" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
+                <XAxis
+                  dataKey="channel"
+                  stroke="hsl(var(--muted-foreground))"
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="plays" fill="hsl(var(--primary))" />
               </BarChart>

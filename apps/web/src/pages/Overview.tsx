@@ -104,9 +104,11 @@ export const OverviewPage = (): JSX.Element => {
               <div className="text-muted-foreground">waiting for events…</div>
             )}
             {events.slice(0, 100).map((e) => (
-              <div key={e.id} className="flex gap-2">
-                <span className="text-muted-foreground">{e.event.at.slice(11, 19)}</span>
-                <Badge variant="outline">{e.event.type}</Badge>
+              <div key={e.id} className="flex items-center gap-2 whitespace-nowrap">
+                <span className="shrink-0 text-muted-foreground">{e.event.at.slice(11, 19)}</span>
+                <Badge variant="outline" className="shrink-0">
+                  {e.event.type}
+                </Badge>
                 <span className="truncate">{summarize(e.event)}</span>
               </div>
             ))}
@@ -118,13 +120,34 @@ export const OverviewPage = (): JSX.Element => {
 };
 
 const summarize = (ev: { type: string } & Record<string, unknown>): string => {
-  if ('channel' in ev && typeof ev.channel === 'string') {
-    const account = 'account' in ev && typeof ev.account === 'string' ? ev.account : '';
-    return `${account ? account + '/' : ''}${ev.channel}`;
+  if (ev.type === 'chat') {
+    const ch = typeof ev.channel === 'string' ? ev.channel : '';
+    const user = typeof ev.user === 'string' ? ev.user : '';
+    const text = typeof ev.text === 'string' ? ev.text : '';
+    return `#${ch} <${user}> ${text}`;
+  }
+  if (ev.type === 'play-sent') {
+    const acc = typeof ev.account === 'string' ? ev.account : '';
+    const ch = typeof ev.channel === 'string' ? ev.channel : '';
+    return `${acc}/${ch} → !play`;
+  }
+  if (ev.type === 'join' || ev.type === 'part') {
+    const acc = typeof ev.account === 'string' ? ev.account : '';
+    const ch = typeof ev.channel === 'string' ? ev.channel : '';
+    return `${acc} ${ev.type} #${ch}`;
+  }
+  if (ev.type === 'auth') {
+    const acc = typeof ev.account === 'string' ? ev.account : '';
+    const phase = typeof ev.phase === 'string' ? ev.phase : '';
+    return `${acc} ${phase}`;
   }
   if (ev.type === 'discovery') {
     const streams = ev.streams as unknown as unknown[];
     return `${streams?.length ?? 0} streams`;
+  }
+  if ('channel' in ev && typeof ev.channel === 'string') {
+    const account = 'account' in ev && typeof ev.account === 'string' ? ev.account : '';
+    return `${account ? account + '/' : ''}${ev.channel}`;
   }
   return JSON.stringify(ev).slice(0, 120);
 };
