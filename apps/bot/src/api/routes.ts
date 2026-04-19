@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { StatsRange } from '@mosbot/shared';
 import { requireAuth } from './auth.js';
@@ -8,6 +9,7 @@ import type { AppConfig } from '@mosbot/shared';
 import type { Metrics } from '../metrics.js';
 import type { LoggerConfig } from '../logger.js';
 import { setLogLevel } from '../logger.js';
+import { ConfigError, parseRawConfig } from '../config/loader.js';
 
 export interface ApiRoutesDeps {
   orchestrator: Orchestrator;
@@ -15,6 +17,7 @@ export interface ApiRoutesDeps {
   stats: StatsRepo;
   config: AppConfig;
   metrics: Metrics;
+  configPath: string;
   updateLogLevel: (level: LoggerConfig['level']) => void;
 }
 
@@ -120,6 +123,50 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
       setLogLevel(req.body.level);
       deps.updateLogLevel(req.body.level);
       return { success: true, data: { level: req.body.level }, error: null };
+    },
+  );
+
+  app.get('/api/config', { preHandler: requireAuth }, async (_req, reply) => {
+    try {
+      const raw = readFileSync(deps.configPath, 'utf8');
+      return { success: true, data: { raw, path: deps.configPath }, error: null };
+    } catch (err) {
+      return reply.code(500).send({
+        success: false,
+        data: null,
+        error: `cannot read config: ${(err as Error).message}`,
+      });
+    }
+  });
+
+  app.put<{ Body: { raw: string } }>(
+    '/api/config',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
+      if (!raw.trim()) {
+        return reply.code(400).send({ success: false, data: null, error: 'empty body' });
+      }
+      try {
+        parseRawConfig(raw);
+      } catch (err) {
+        const msg = err instanceof ConfigError ? err.message : (err as Error).message;
+        return reply.code(400).send({ success: false, data: null, error: msg });
+      }
+      try {
+        writeFileSync(deps.configPath, raw, 'utf8');
+      } catch (err) {
+        return reply.code(500).send({
+          success: false,
+          data: null,
+          error: `cannot write config: ${(err as Error).message}`,
+        });
+      }
+      return {
+        success: true,
+        data: { restartRequired: true, path: deps.configPath },
+        error: null,
+      };
     },
   );
 

@@ -28,6 +28,27 @@ export class ConfigError extends Error {
   }
 }
 
+export const parseRawConfig = (
+  raw: string,
+  env: NodeJS.ProcessEnv = process.env,
+): AppConfig => {
+  let yaml: unknown;
+  try {
+    yaml = loadYaml(raw);
+  } catch (err) {
+    throw new ConfigError(`invalid YAML: ${(err as Error).message}`);
+  }
+  const interpolated = interpolateEnv(yaml, env);
+  const parsed = AppConfig.safeParse(interpolated);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('; ');
+    throw new ConfigError(`config validation failed: ${issues}`);
+  }
+  return parsed.data;
+};
+
 export const loadConfig = (
   path: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -38,21 +59,12 @@ export const loadConfig = (
   } catch (err) {
     throw new ConfigError(`cannot read config at ${path}: ${(err as Error).message}`);
   }
-
-  let yaml: unknown;
   try {
-    yaml = loadYaml(raw);
+    return parseRawConfig(raw, env);
   } catch (err) {
-    throw new ConfigError(`invalid YAML in ${path}: ${(err as Error).message}`);
+    if (err instanceof ConfigError) {
+      throw new ConfigError(`${err.message} (in ${path})`);
+    }
+    throw err;
   }
-
-  const interpolated = interpolateEnv(yaml, env);
-  const parsed = AppConfig.safeParse(interpolated);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-      .join('; ');
-    throw new ConfigError(`config validation failed: ${issues}`);
-  }
-  return parsed.data;
 };

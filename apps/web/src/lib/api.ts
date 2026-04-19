@@ -74,4 +74,17 @@ export const api = {
       body: JSON.stringify({ level }),
     });
   },
+  getConfig: async (): Promise<{ raw: string; path: string }> => {
+    const res = await fetch('/api/config', { credentials: 'include' });
+    return unwrap(res);
+  },
+  saveConfig: async (raw: string): Promise<{ restartRequired: boolean; path: string }> => {
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw }),
+    });
+    return unwrap(res);
+  },
 };

@@ -58,6 +58,7 @@ const main = async (): Promise<void> => {
     metrics,
     sessionSecret,
     logger,
+    configPath: CONFIG_PATH,
     updateLogLevel: (level) => {
       config.logging.level = level;
     },
