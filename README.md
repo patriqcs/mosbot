@@ -29,9 +29,9 @@ See [`config.example.yaml`](./config.example.yaml) for every knob.
 
 ## Installation
 
-**Neu hier?** Folg der ausführlichen Schritt-für-Schritt-Anleitung:
-**[docs/INSTALL.md](./docs/INSTALL.md)** — von Twitch-App bis laufendem
-Container in ca. 15 Minuten.
+**New here?** Follow the detailed step-by-step guide in
+**[docs/INSTALL.md](./docs/INSTALL.md)** — from Twitch app registration
+to a running container in ~15 minutes.
 
 ## Prerequisites
 
@@ -84,7 +84,7 @@ Container in ca. 15 Minuten.
    `https://twitch.tv/activate`, and approve. The bot reports
    *online* within 10 seconds; discovery starts on the next interval.
 
-> For a fully detailed walkthrough in German with troubleshooting, see
+> For a fully detailed walkthrough with troubleshooting, see
 > [docs/INSTALL.md](./docs/INSTALL.md).
 
 Placeholder for screenshots once you take them:
