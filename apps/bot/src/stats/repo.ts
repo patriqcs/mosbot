@@ -103,8 +103,8 @@ export class StatsRepo {
   }
 
   aggregate(range: StatsRange): StatsResponse {
-    const windowMs = rangeToMs[range];
-    const bucketMs = rangeBucketMs[range];
+    const windowMs = rangeToMs[range] ?? 24 * 60 * 60 * 1000;
+    const bucketMs = rangeBucketMs[range] ?? 60 * 60 * 1000;
     const since = Date.now() - windowMs;
 
     const plays = this.db

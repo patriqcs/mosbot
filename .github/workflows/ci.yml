@@ -32,6 +32,7 @@ jobs:
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @mosbot/shared build
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
