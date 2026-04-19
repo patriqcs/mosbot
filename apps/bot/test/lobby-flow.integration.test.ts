@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import pino from 'pino';
 import { LobbyDetector } from '../src/lobby/lobby-detector.js';
 import { PlayScheduler } from '../src/lobby/play-scheduler.js';
+import { MarblesTimerGuard } from '../src/lobby/marbles-timer-guard.js';
 import { TokenBucket } from '../src/ratelimit/bucket.js';
 import { EventBus } from '../src/events/bus.js';
 import type { ChatManager } from '../src/chat/chat-manager.js';
@@ -26,6 +27,7 @@ describe('full lobby flow: detect -> schedule -> send', () => {
       chat,
       bucket,
       detector,
+      timerGuard: new MarblesTimerGuard(),
       bus,
       logger: silentLogger,
       accountName: 'primary',
@@ -62,6 +64,7 @@ describe('full lobby flow: detect -> schedule -> send', () => {
       chat,
       bucket,
       detector,
+      timerGuard: new MarblesTimerGuard(),
       bus,
       logger: silentLogger,
       accountName: 'primary',

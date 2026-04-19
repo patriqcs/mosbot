@@ -5,6 +5,7 @@ export class Metrics {
   readonly playsSentTotal: Counter;
   readonly lobbiesDetectedTotal: Counter;
   readonly rateLimitedTotal: Counter;
+  readonly marblesTimerDropsTotal: Counter;
   readonly channelsJoinedGauge: Gauge;
   readonly discoveryDuration: Histogram;
 
@@ -25,6 +26,12 @@ export class Metrics {
     this.rateLimitedTotal = new Counter({
       name: 'mosbot_rate_limited_total',
       help: 'Number of times the rate limiter blocked a send',
+      labelNames: ['account'] as const,
+      registers: [this.registry],
+    });
+    this.marblesTimerDropsTotal = new Counter({
+      name: 'mosbot_marbles_timer_drops_total',
+      help: 'Number of !play drops caused by the Marbles 3-stream timer limit',
       labelNames: ['account'] as const,
       registers: [this.registry],
     });

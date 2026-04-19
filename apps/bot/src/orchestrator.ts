@@ -5,6 +5,7 @@ import { Discovery } from './discovery/discovery.js';
 import { ChatManager } from './chat/chat-manager.js';
 import { LobbyDetector } from './lobby/lobby-detector.js';
 import { PlayScheduler } from './lobby/play-scheduler.js';
+import { MarblesTimerGuard } from './lobby/marbles-timer-guard.js';
 import { TokenBucket } from './ratelimit/bucket.js';
 import { applyFilter, diffChannels } from './chat/channel-differ.js';
 import type { EventBus } from './events/bus.js';
@@ -25,6 +26,7 @@ interface AccountBundle {
   chat: ChatManager;
   bucket: TokenBucket;
   detector: LobbyDetector;
+  timerGuard: MarblesTimerGuard;
   scheduler: PlayScheduler;
   discovery: Discovery;
 }
@@ -128,10 +130,12 @@ export class Orchestrator {
       minPlayers: this.deps.config.lobby.minPlayers,
       cooldownMs: this.deps.config.lobby.cooldownSeconds * 1000,
     });
+    const timerGuard = new MarblesTimerGuard();
     const scheduler = new PlayScheduler({
       chat,
       bucket,
       detector,
+      timerGuard,
       bus: this.deps.bus,
       logger: this.logger,
       accountName: runtime.name,
@@ -163,10 +167,20 @@ export class Orchestrator {
           this.deps.metrics.lobbiesDetectedTotal.inc({ channel });
         } else if (outcome === 'throttled') {
           this.deps.metrics.rateLimitedTotal.inc({ account: runtime.name });
+        } else if (outcome === 'timer-limit') {
+          this.deps.metrics.marblesTimerDropsTotal.inc({ account: runtime.name });
         }
       });
     });
-    this.bundles.set(runtime.name, { runtime, chat, bucket, detector, scheduler, discovery });
+    this.bundles.set(runtime.name, {
+      runtime,
+      chat,
+      bucket,
+      detector,
+      timerGuard,
+      scheduler,
+      discovery,
+    });
   }
 
   private scheduleNextDiscovery(): void {
