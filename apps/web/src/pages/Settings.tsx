@@ -3,6 +3,7 @@ import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldHelp, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 
 type Mode = 'form' | 'yaml';
@@ -95,6 +96,7 @@ export const SettingsPage = (): JSX.Element => {
   };
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Settings</h1>
@@ -167,6 +169,7 @@ export const SettingsPage = (): JSX.Element => {
         </Button>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 
@@ -192,6 +195,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         <CardContent className="space-y-3">
           <LabeledNumber
             label="Interval (minutes)"
+            help="How often the bot queries Twitch Helix for live Marbles-on-Stream channels. Lower = faster reaction to new streams, but more API traffic. Default 3."
             value={config.discovery.intervalMinutes}
             min={1}
             max={60}
@@ -199,6 +203,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledNumber
             label="Max streams"
+            help="Upper bound on channels the bot tracks at any time. Higher = more chat presence, but also more rate-limit pressure on the account. Default 20."
             value={config.discovery.maxStreams}
             min={1}
             max={100}
@@ -206,12 +211,14 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledNumber
             label="Min viewers"
+            help="Skip streams below this viewer count. Raise to focus on larger audiences, lower to join smaller streams. Default 30."
             value={config.discovery.minViewers}
             min={0}
             onChange={(v) => update('discovery', { minViewers: v })}
           />
           <LabeledText
             label="Language (ISO code, empty = any)"
+            help="ISO language code such as 'en' or 'de'. Only streams in this language are considered. Leave empty to accept any language."
             value={config.discovery.language ?? ''}
             onChange={(v) => update('discovery', { language: v.trim() === '' ? null : v })}
           />
@@ -225,6 +232,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         <CardContent className="space-y-3">
           <LabeledNumber
             label="Window (seconds)"
+            help="Rolling time window during which distinct !play messages must appear to count as an open lobby. Default 30."
             value={config.lobby.windowSeconds}
             min={5}
             max={600}
@@ -232,6 +240,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledNumber
             label="Min players"
+            help="Number of distinct OTHER users that must send !play within the window before the bot joins in by sending its own !play. Default 4."
             value={config.lobby.minPlayers}
             min={1}
             max={100}
@@ -239,6 +248,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledNumber
             label="Cooldown (seconds)"
+            help="After the bot sends its own !play in a channel, it will not send another for this many seconds — prevents spam on back-to-back lobbies. Default 180."
             value={config.lobby.cooldownSeconds}
             min={0}
             max={3600}
@@ -254,6 +264,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         <CardContent className="space-y-3">
           <LabeledNumber
             label="User chat budget / 30s"
+            help="Maximum chat messages the bot may send per 30 s. Twitch caps regular accounts at 20; this default (16) leaves safety margin so any miner sending !play on the same account does not push us over."
             value={config.ratelimit.userChatBudgetPer30s}
             min={1}
             max={100}
@@ -261,6 +272,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledCheckbox
             label="Verified bot (45 msg/30s)"
+            help="Enable ONLY if the Twitch account is granted Verified Bot status. Raises the effective budget to 45 msg / 30 s. Default off."
             value={config.ratelimit.verifiedBot}
             onChange={(v) => update('ratelimit', { verifiedBot: v })}
           />
@@ -273,7 +285,10 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium">Level</label>
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              Level
+              <FieldHelp text="Lowest severity captured in logs. 'trace' and 'debug' are very verbose; 'info' is the default for production. Changing this via YAML requires restart; use the Logs page for runtime changes." />
+            </label>
             <div className="flex gap-1">
               {LOG_LEVELS.map((l) => (
                 <Button
@@ -289,6 +304,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           </div>
           <LabeledNumber
             label="Rotate after (days)"
+            help="Log files older than this are deleted by pino-roll. Default 14."
             value={config.logging.rotateDays}
             min={1}
             max={365}
@@ -296,6 +312,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledCheckbox
             label="Persist chat messages to SQLite"
+            help="Store every observed chat message into the SQLite database for stats and retrospective analysis. Off = stats still count !play events but individual messages are not kept."
             value={config.logging.chatLog}
             onChange={(v) => update('logging', { chatLog: v })}
           />
@@ -309,11 +326,13 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         <CardContent className="space-y-3">
           <TagList
             label="Whitelist (only these channels joined, case-insensitive)"
+            help="If non-empty, Discovery results are filtered down to ONLY these logins. Everything else is ignored. Useful for focused testing or restricting to known-safe channels."
             values={config.channels.whitelist}
             onChange={(v) => update('channels', { whitelist: v })}
           />
           <TagList
             label="Blacklist (never joined)"
+            help="Channel logins the bot must never join, even if they appear in Discovery. Typically used to respect streamers who asked not to be joined."
             values={config.channels.blacklist}
             onChange={(v) => update('channels', { blacklist: v })}
           />
@@ -328,6 +347,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           <CardContent className="space-y-3">
             <LabeledCheckbox
               label="Enabled"
+              help="Watch the specified points-miner container and back off chat sends if it chatted recently on the same account — so we never exceed Twitch chat limits when both processes share one account."
               value={config.coexistence.pointsMiner.enabled}
               onChange={(v) =>
                 onChange({
@@ -341,6 +361,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             />
             <LabeledText
               label="Docker container name"
+              help="Name of the points-miner Docker container on this host (e.g. 'twitch-miner'). Used to detect if the miner is running."
               value={config.coexistence.pointsMiner.dockerContainerName}
               onChange={(v) =>
                 onChange({
@@ -357,6 +378,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             />
             <LabeledText
               label="Appdata path"
+              help="Host path where the points miner keeps its logs (e.g. /mnt/user/appdata/twitch-miner). The bot parses these to see recent chat sends for back-off decisions."
               value={config.coexistence.pointsMiner.appdataPath}
               onChange={(v) =>
                 onChange({
@@ -380,12 +402,23 @@ interface LabeledNumberProps {
   value: number;
   min?: number;
   max?: number;
+  help?: string;
   onChange: (v: number) => void;
 }
 
-const LabeledNumber = ({ label, value, min, max, onChange }: LabeledNumberProps): JSX.Element => (
+const LabeledNumber = ({
+  label,
+  value,
+  min,
+  max,
+  help,
+  onChange,
+}: LabeledNumberProps): JSX.Element => (
   <div className="flex flex-col gap-1">
-    <label className="text-xs font-medium">{label}</label>
+    <label className="flex items-center gap-1.5 text-xs font-medium">
+      {label}
+      {help && <FieldHelp text={help} />}
+    </label>
     <Input
       type="number"
       value={value}
@@ -402,12 +435,16 @@ const LabeledNumber = ({ label, value, min, max, onChange }: LabeledNumberProps)
 interface LabeledTextProps {
   label: string;
   value: string;
+  help?: string;
   onChange: (v: string) => void;
 }
 
-const LabeledText = ({ label, value, onChange }: LabeledTextProps): JSX.Element => (
+const LabeledText = ({ label, value, help, onChange }: LabeledTextProps): JSX.Element => (
   <div className="flex flex-col gap-1">
-    <label className="text-xs font-medium">{label}</label>
+    <label className="flex items-center gap-1.5 text-xs font-medium">
+      {label}
+      {help && <FieldHelp text={help} />}
+    </label>
     <Input value={value} onChange={(e) => onChange(e.target.value)} />
   </div>
 );
@@ -415,28 +452,38 @@ const LabeledText = ({ label, value, onChange }: LabeledTextProps): JSX.Element 
 interface LabeledCheckboxProps {
   label: string;
   value: boolean;
+  help?: string;
   onChange: (v: boolean) => void;
 }
 
-const LabeledCheckbox = ({ label, value, onChange }: LabeledCheckboxProps): JSX.Element => (
-  <label className="flex items-center gap-2 text-sm">
-    <input
-      type="checkbox"
-      checked={value}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4"
-    />
-    {label}
-  </label>
+const LabeledCheckbox = ({
+  label,
+  value,
+  help,
+  onChange,
+}: LabeledCheckboxProps): JSX.Element => (
+  <div className="flex items-center gap-2 text-sm">
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4"
+      />
+      {label}
+    </label>
+    {help && <FieldHelp text={help} />}
+  </div>
 );
 
 interface TagListProps {
   label: string;
   values: string[];
+  help?: string;
   onChange: (v: string[]) => void;
 }
 
-const TagList = ({ label, values, onChange }: TagListProps): JSX.Element => {
+const TagList = ({ label, values, help, onChange }: TagListProps): JSX.Element => {
   const [input, setInput] = useState('');
   const add = (): void => {
     const v = input.trim();
@@ -451,7 +498,10 @@ const TagList = ({ label, values, onChange }: TagListProps): JSX.Element => {
   const remove = (v: string): void => onChange(values.filter((x) => x !== v));
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-xs font-medium">{label}</label>
+      <label className="flex items-center gap-1.5 text-xs font-medium">
+        {label}
+        {help && <FieldHelp text={help} />}
+      </label>
       <div className="flex flex-wrap gap-1">
         {values.map((v) => (
           <span
