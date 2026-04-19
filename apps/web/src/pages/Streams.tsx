@@ -74,41 +74,27 @@ export const StreamsPage = (): JSX.Element => {
           <CardTitle>Discovered channels</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <colgroup>
-              <col className="w-[40%]" />
+              <col className="w-[45%]" />
               <col className="w-[15%]" />
               <col className="w-[10%]" />
-              <col className="w-[25%]" />
+              <col className="w-[20%]" />
               <col className="w-[10%]" />
             </colgroup>
             <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <ThSort label="Streamer" f="streamer" field={field} dir={dir} onClick={toggle} />
-                <ThSort
-                  label="Viewers"
-                  f="viewers"
-                  field={field}
-                  dir={dir}
-                  onClick={toggle}
-                  align="right"
-                />
-                <ThSort label="Lang" f="lang" field={field} dir={dir} onClick={toggle} />
-                <ThSort label="Joined" f="joined" field={field} dir={dir} onClick={toggle} />
-                <ThSort
-                  label="!play"
-                  f="plays"
-                  field={field}
-                  dir={dir}
-                  onClick={toggle}
-                  align="right"
-                />
+                <ThSort label="Streamer" f="streamer" field={field} dir={dir} onClick={toggle} align="left" />
+                <ThSort label="Viewers" f="viewers" field={field} dir={dir} onClick={toggle} align="right" />
+                <ThSort label="Lang" f="lang" field={field} dir={dir} onClick={toggle} align="center" />
+                <ThSort label="Joined" f="joined" field={field} dir={dir} onClick={toggle} align="center" />
+                <ThSort label="!play" f="plays" field={field} dir={dir} onClick={toggle} align="right" />
               </tr>
             </thead>
             <tbody>
               {sorted.map((s) => (
                 <tr key={s.userLogin} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-mono">
+                  <td className="pl-4 pr-2 py-2 font-mono text-left truncate">
                     <a
                       href={`https://twitch.tv/${s.userLogin}`}
                       target="_blank"
@@ -118,24 +104,18 @@ export const StreamsPage = (): JSX.Element => {
                       {s.userLogin}
                     </a>
                   </td>
-                  <td className="px-4 py-2 text-right">{s.viewerCount.toLocaleString()}</td>
-                  <td className="px-4 py-2">{s.language}</td>
-                  <td className="px-4 py-2">
-                    <Badge variant={s.joined ? 'success' : 'outline'}>
-                      {s.joined ? 'yes' : 'no'}
-                    </Badge>
-                    {s.blacklisted && (
-                      <Badge variant="destructive" className="ml-2">
-                        blacklisted
+                  <td className="px-4 py-2 text-right tabular-nums">{s.viewerCount.toLocaleString()}</td>
+                  <td className="px-4 py-2 text-center">{s.language}</td>
+                  <td className="px-4 py-2 text-center">
+                    <div className="inline-flex items-center gap-2">
+                      <Badge variant={s.joined ? 'success' : 'outline'}>
+                        {s.joined ? 'yes' : 'no'}
                       </Badge>
-                    )}
-                    {s.whitelisted && (
-                      <Badge variant="secondary" className="ml-2">
-                        whitelisted
-                      </Badge>
-                    )}
+                      {s.blacklisted && <Badge variant="destructive">blacklisted</Badge>}
+                      {s.whitelisted && <Badge variant="secondary">whitelisted</Badge>}
+                    </div>
                   </td>
-                  <td className="px-4 py-2 text-right">{s.playsSent}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{s.playsSent}</td>
                 </tr>
               ))}
             </tbody>
@@ -155,14 +135,20 @@ interface ThSortProps {
   field: SortField;
   dir: SortDir;
   onClick: (f: SortField) => void;
-  align?: 'left' | 'right';
+  align?: 'left' | 'center' | 'right';
 }
+
+const ALIGN_CLASSES: Record<NonNullable<ThSortProps['align']>, string> = {
+  left: 'text-left pl-4 pr-2',
+  center: 'text-center px-4',
+  right: 'text-right px-4',
+};
 
 const ThSort = ({ label, f, field, dir, onClick, align = 'left' }: ThSortProps): JSX.Element => {
   const active = field === f;
   const Icon = !active ? ChevronsUpDown : dir === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <th className={`px-4 py-2 text-${align}`}>
+    <th className={`py-2 ${ALIGN_CLASSES[align]}`}>
       <button
         type="button"
         onClick={() => onClick(f)}
