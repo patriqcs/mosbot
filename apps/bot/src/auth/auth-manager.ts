@@ -1,6 +1,5 @@
 import { RefreshingAuthProvider, exchangeCode } from '@twurple/auth';
 import type { AccessToken } from '@twurple/auth';
-import { ApiClient } from '@twurple/api';
 import type { Logger } from 'pino';
 import type { AuthEvent } from '@mosbot/shared';
 import type { EventBus } from '../events/bus.js';
@@ -14,7 +13,6 @@ export interface AccountRuntime {
   name: string;
   clientId: string;
   provider: RefreshingAuthProvider;
-  api: ApiClient;
   userId: string;
   userLogin: string;
 }
@@ -200,12 +198,10 @@ export class AuthManager {
       } as unknown as AccessToken,
       ['chat'],
     );
-    const api = new ApiClient({ authProvider: provider });
     const rt: AccountRuntime = {
       name: accountName,
       clientId,
       provider,
-      api,
       userId: resolvedUserId,
       userLogin: resolvedUserLogin,
     };

@@ -59,9 +59,6 @@ importers:
       '@mosbot/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@twurple/api':
-        specifier: ^7.2.0
-        version: 7.4.0(@twurple/auth@7.4.0)
       '@twurple/auth':
         specifier: ^7.2.0
         version: 7.4.0
@@ -1673,11 +1670,6 @@ packages:
 
   '@twurple/api-call@7.4.0':
     resolution: {integrity: sha512-WNxvjp/hMqZREElbvE4rHMyUIrHdGY5cbG8xbqgSM9CESFvJ1wm5BubhyANOyKd1TxABacLddbfbO//Fz9YHgA==}
-
-  '@twurple/api@7.4.0':
-    resolution: {integrity: sha512-RlXLs4ZvS8n0+iIk7YyVDwrjhlwpn+N+h7fX5Q61HoxlmzoCShmnnFo03abYw9i8Cc3deGpbQATOSVmigXM4qg==}
-    peerDependencies:
-      '@twurple/auth': 7.4.0
 
   '@twurple/auth-tmi@7.4.0':
     resolution: {integrity: sha512-Zy0UCGQ45ck4pROZZNNwq1WcAXOl3aEvozT+kcsmpH2/Cn4eWVg7u9+x+gWMViwZ/S7wIKF23kV+bgedD+LpSQ==}
@@ -3659,10 +3651,6 @@ packages:
     resolution: {integrity: sha512-0f4Memo5QP7WQyUEAYUO3esD/XjOc3Zjjg5CPsAq1p8sIu0XPeMbHJemKA0BO7tV0X7+A0FoEpbmHXWxPyD3wQ==}
     engines: {node: '>=10'}
 
-  retry@0.13.1:
-    resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
-    engines: {node: '>= 4'}
-
   rettime@0.11.7:
     resolution: {integrity: sha512-DoAm1WjR1eH7z8sHPtvvUMIZh4/CSKkGCz6CxPqOrEAnOGtOuHSnSE9OC+razqxKuf4ub7pAYyl/vZV0vGs5tg==}
 
@@ -5393,23 +5381,6 @@ snapshots:
       '@d-fischer/qs': 7.0.2
       '@d-fischer/shared-utils': 3.6.4
       '@twurple/common': 7.4.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - encoding
-
-  '@twurple/api@7.4.0(@twurple/auth@7.4.0)':
-    dependencies:
-      '@d-fischer/cache-decorators': 4.0.1
-      '@d-fischer/cross-fetch': 5.0.5
-      '@d-fischer/detect-node': 3.0.1
-      '@d-fischer/logger': 4.2.4
-      '@d-fischer/rate-limiter': 1.1.0
-      '@d-fischer/shared-utils': 3.6.4
-      '@d-fischer/typed-event-emitter': 3.3.3
-      '@twurple/api-call': 7.4.0
-      '@twurple/auth': 7.4.0
-      '@twurple/common': 7.4.0
-      retry: 0.13.1
       tslib: 2.8.1
     transitivePeerDependencies:
       - encoding
@@ -7615,8 +7586,6 @@ snapshots:
       supports-preserve-symlinks-flag: 1.0.0
 
   ret@0.4.3: {}
-
-  retry@0.13.1: {}
 
   rettime@0.11.7: {}
 
