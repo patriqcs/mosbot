@@ -81,7 +81,11 @@ export class Discovery {
     let cursor: string | null = null;
     for (let guard = 0; guard < 10; guard++) {
       const params = new URLSearchParams({ game_id: gameId, first: '100' });
-      if (language) params.append('language', language);
+      if (language) {
+        for (const l of language.split(',').map((s) => s.trim()).filter(Boolean)) {
+          params.append('language', l);
+        }
+      }
       if (cursor) params.append('after', cursor);
       const json = await this.helix<{
         data: HelixStreamRaw[];

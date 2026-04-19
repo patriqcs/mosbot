@@ -5,7 +5,7 @@ discovery:
   intervalMinutes: 3        # how often to poll Twitch Helix for live MOS streams
   maxStreams: 20            # upper bound on channels we track at any time
   minViewers: 30            # skip streams below this viewer count
-  language: null            # ISO code (e.g. "en", "de") or null to accept any
+  language: null            # ISO code(s) — "en", "de", or CSV "de,en"; null = any
 
 lobby:
   windowSeconds: 30         # rolling window for distinct !play messages

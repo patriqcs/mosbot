@@ -4,7 +4,11 @@ export const DiscoveryConfig = z.object({
   intervalMinutes: z.number().int().min(1).max(60).default(3),
   maxStreams: z.number().int().min(1).max(100).default(20),
   minViewers: z.number().int().min(0).default(30),
-  language: z.string().min(2).max(5).nullable().default(null),
+  language: z
+    .string()
+    .regex(/^[a-zA-Z]{2,3}(\s*,\s*[a-zA-Z]{2,3})*$/, 'expected ISO codes, e.g. "en" or "de,en"')
+    .nullable()
+    .default(null),
 });
 
 export const LobbyConfig = z.object({

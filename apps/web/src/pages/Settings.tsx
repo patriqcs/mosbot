@@ -211,8 +211,8 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             onChange={(v) => update('discovery', { minViewers: v })}
           />
           <LabeledText
-            label="Language (ISO code, empty = any)"
-            help="ISO language code such as 'en' or 'de'. Only streams in this language are considered. Leave empty to accept any language."
+            label="Languages (ISO codes, comma-separated, empty = any)"
+            help="ISO language code(s), e.g. 'en' for English only, or 'de,en' for German + English. Multiple codes are comma-separated. Only streams in one of these languages are considered. Leave empty to accept any language."
             value={config.discovery.language ?? ''}
             onChange={(v) => update('discovery', { language: v.trim() === '' ? null : v })}
           />

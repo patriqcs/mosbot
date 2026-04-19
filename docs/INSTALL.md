@@ -162,7 +162,7 @@ discovery:
   intervalMinutes: 3
   maxStreams: 20
   minViewers: 30
-  language: null            # "en" or "de" to restrict to one language, null = any
+  language: null            # "en", "de", or CSV like "de,en"; null = any
 
 lobby:
   windowSeconds: 30
