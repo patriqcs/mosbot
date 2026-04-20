@@ -68,6 +68,8 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           build-args: |
             APP_VERSION=${{ steps.meta.outputs.version }}
           tags: |
