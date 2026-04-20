@@ -45,6 +45,27 @@ export class Orchestrator {
 
   constructor(private readonly deps: OrchestratorDeps) {
     this.logger = deps.logger.child({ module: 'orchestrator' });
+    deps.bus.on('auth', (ev) => {
+      if (ev.phase !== 'authorized') return;
+      void this.handleAuthorized(ev.account).catch((err) => {
+        this.logger.error(
+          { err, account: ev.account },
+          'failed to bind newly authorized account',
+        );
+      });
+    });
+  }
+
+  private async handleAuthorized(name: string): Promise<void> {
+    if (this.bundles.has(name)) return;
+    const runtime = this.deps.auth.get(name);
+    if (!runtime) return;
+    if (!this.running) {
+      await this.start();
+      return;
+    }
+    await this.bindAccount(runtime);
+    await this.runDiscoveryCycle();
   }
 
   async start(): Promise<void> {
