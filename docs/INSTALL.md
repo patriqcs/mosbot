@@ -112,7 +112,7 @@ including every dollar sign.
    Repositories** and enter the URL below, then search.)
 3. Paste the URL:
    ```
-   https://raw.githubusercontent.com/patriqcs/mosbot/main/unraid/mosbot.xml
+   https://raw.githubusercontent.com/patriqcs/unraid-templates/main/mosbot.xml
    ```
 4. Click **Get More Results from Apps.ko-fi**. `MOSBot` appears in the
    list → click **Install**.

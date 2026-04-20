@@ -65,7 +65,7 @@ to a running container in ~15 minutes.
    4. Save this Client ID for the `TWITCH_CLIENT_ID` field below.
 2. In Unraid: **Apps → Add Container → Template URL** and paste:
    ```
-   https://raw.githubusercontent.com/patriqcs/mosbot/main/unraid/mosbot.xml
+   https://raw.githubusercontent.com/patriqcs/unraid-templates/main/mosbot.xml
    ```
 3. Generate secrets (run on any Docker host):
    ```sh
