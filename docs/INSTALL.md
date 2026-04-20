@@ -160,7 +160,7 @@ Use this minimal config (most defaults are filled in automatically):
 ```yaml
 discovery:
   intervalMinutes: 3
-  maxStreams: 20
+  maxStreams: 10
   minViewers: 30
   language: null            # "en", "de", or CSV like "de,en"; null = any
   sortBy: most-viewers      # "most-viewers" (big streams) or "least-viewers" (small streams)

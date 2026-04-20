@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const DiscoveryConfig = z.object({
   intervalMinutes: z.number().int().min(1).max(60).default(3),
-  maxStreams: z.number().int().min(1).max(100).default(20),
+  maxStreams: z.number().int().min(1).max(100).default(10),
   minViewers: z.number().int().min(0).default(30),
   language: z
     .string()

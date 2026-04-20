@@ -3,7 +3,7 @@
 
 discovery:
   intervalMinutes: 3        # how often to poll Twitch Helix for live MOS streams
-  maxStreams: 20            # upper bound on channels we track at any time
+  maxStreams: 10            # upper bound on channels we track at any time
   minViewers: 30            # skip streams below this viewer count
   language: null            # ISO code(s) — "en", "de", or CSV "de,en"; null = any
   sortBy: most-viewers      # "most-viewers" (default) or "least-viewers"
