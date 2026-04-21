@@ -87,7 +87,7 @@ to a running container in ~15 minutes.
 > For a fully detailed walkthrough with troubleshooting, see
 > [docs/INSTALL.md](./docs/INSTALL.md).
 
-Placeholder for screenshots once you take them:
+Placeholder for screenshots:
 
 - ![Unraid add container](./docs/screenshots/unraid-add-container.png)
 - ![Dashboard DCF login](./docs/screenshots/device-code-login.png)
