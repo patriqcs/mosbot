@@ -31,9 +31,18 @@ export class PlayScheduler {
     if (detector.isOnCooldown(channel)) return 'cooldown';
     const gate = timerGuard.canSend(channel);
     if (!gate.allowed) {
+      const msg =
+        gate.reason === 'skipped'
+          ? 'channel marked as skipped, dropping !play'
+          : 'marbles 3-stream limit: new channel would become the 4th, dropping !play';
       this.logger.warn(
-        { channel, activeTimers: gate.activeCount, activeChannels: timerGuard.active().map((t) => t.channel) },
-        'marbles 3-stream limit: new channel would become the 4th, dropping !play',
+        {
+          channel,
+          activeTimers: gate.activeCount,
+          activeChannels: timerGuard.active().map((t) => t.channel),
+          reason: gate.reason,
+        },
+        msg,
       );
       return 'timer-limit';
     }

@@ -35,4 +35,14 @@ describe('applyFilter', () => {
     const out = applyFilter(['A', 'a', 'A'], {});
     expect(out).toEqual(['a']);
   });
+
+  it('prefer overrides whitelist (channel passes even if not whitelisted)', () => {
+    const out = applyFilter(['a', 'b', 'c'], { whitelist: ['a'], prefer: ['c'] });
+    expect(out.sort()).toEqual(['a', 'c']);
+  });
+
+  it('blacklist still wins over prefer', () => {
+    const out = applyFilter(['a', 'b'], { prefer: ['a', 'b'], blacklist: ['a'] });
+    expect(out).toEqual(['b']);
+  });
 });

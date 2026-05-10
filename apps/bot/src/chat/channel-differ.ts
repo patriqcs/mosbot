@@ -6,6 +6,7 @@ export interface DiffResult {
 export interface ChannelFilter {
   whitelist?: string[];
   blacklist?: string[];
+  prefer?: string[];
 }
 
 const lc = (s: string): string => s.toLowerCase();
@@ -16,11 +17,12 @@ export const applyFilter = (
 ): string[] => {
   const wl = new Set((filter.whitelist ?? []).map(lc));
   const bl = new Set((filter.blacklist ?? []).map(lc));
+  const pf = new Set((filter.prefer ?? []).map(lc));
   const out = new Set<string>();
   for (const raw of logins) {
     const name = lc(raw);
-    if (wl.size > 0 && !wl.has(name)) continue;
     if (bl.has(name)) continue;
+    if (wl.size > 0 && !wl.has(name) && !pf.has(name)) continue;
     out.add(name);
   }
   return [...out];

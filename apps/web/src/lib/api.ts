@@ -53,6 +53,13 @@ export const api = {
     const res = await fetch('/api/bot/stop', { method: 'POST', credentials: 'include' });
     return unwrap(res);
   },
+  skipMarblesTimer: async (account: string, channel: string): Promise<{ skipped: boolean }> => {
+    const res = await fetch(
+      `/api/marbles-timers/${encodeURIComponent(account)}/${encodeURIComponent(channel)}/skip`,
+      { method: 'POST', credentials: 'include' },
+    );
+    return unwrap(res);
+  },
   loginAccount: async (name: string): Promise<DeviceCodeLoginResponse> => {
     const res = await fetch(`/api/accounts/${encodeURIComponent(name)}/login`, {
       method: 'POST',

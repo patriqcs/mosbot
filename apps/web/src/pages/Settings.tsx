@@ -28,6 +28,7 @@ interface EditableConfig {
   channels: {
     whitelist: string[];
     blacklist: string[];
+    prefer: string[];
   };
   logging: {
     level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -360,6 +361,12 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             help="Channel logins the bot must never join, even if they appear in Discovery. Typically used to respect streamers who asked not to be joined."
             values={config.channels.blacklist}
             onChange={(v) => update('channels', { blacklist: v })}
+          />
+          <TagList
+            label="Prefer list (auto-prioritised when online)"
+            help="Channels in this list are always joined when online, even if a Whitelist is set (Blacklist still wins). When a prefer-channel comes online and all 3 Marbles-Timer slots are full, the slot with the shortest remaining time is skipped and replaced by the prefer-channel. The 'Prefer' setting in Discovery (most/least viewers) decides which candidate is picked when several prefer-channels are online or when a freed slot must be refilled."
+            values={config.channels.prefer ?? []}
+            onChange={(v) => update('channels', { prefer: v })}
           />
         </CardContent>
       </Card>

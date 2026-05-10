@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS marbles_timers (
   account TEXT NOT NULL,
   channel TEXT NOT NULL,
   started_at INTEGER NOT NULL,
+  skipped INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (account, channel)
 );
 
@@ -101,4 +102,22 @@ CREATE VIEW IF NOT EXISTS top_channels AS
 
 const runBootstrapMigrations = (sqlite: Database.Database): void => {
   sqlite.exec(BOOTSTRAP_SQL);
+  ensureColumn(sqlite, 'marbles_timers', 'skipped', 'INTEGER NOT NULL DEFAULT 0');
+};
+
+interface PragmaColumn {
+  name: string;
+}
+
+const ensureColumn = (
+  sqlite: Database.Database,
+  table: string,
+  column: string,
+  definition: string,
+): void => {
+  const cols = sqlite
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as PragmaColumn[];
+  if (cols.some((c) => c.name === column)) return;
+  sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 };

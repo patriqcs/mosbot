@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Square, Timer } from 'lucide-react';
+import { Play, Square, Timer, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { eventStream } from '@/lib/ws';
 import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
@@ -110,7 +110,9 @@ export const OverviewPage = (): JSX.Element => {
 const MAX_TIMERS = 3;
 
 const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.Element => {
+  const qc = useQueryClient();
   const [tick, setTick] = useState(Date.now());
+  const [skipping, setSkipping] = useState<string | null>(null);
   useEffect(() => {
     const id = setInterval(() => setTick(Date.now()), 1000);
     return () => clearInterval(id);
@@ -121,13 +123,26 @@ const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.El
     .filter((t) => t.remainingMs > 0)
     .sort((a, b) => a.remainingMs - b.remainingMs);
 
-  const usedSlots = active.length;
+  const slotUsage = active.filter((t) => !t.skipped).length;
   const slotColor =
-    usedSlots >= MAX_TIMERS
+    slotUsage >= MAX_TIMERS
       ? 'destructive'
-      : usedSlots >= 2
+      : slotUsage >= 2
         ? 'secondary'
         : 'success';
+
+  const onSkip = async (account: string, channel: string): Promise<void> => {
+    const key = `${account}:${channel}`;
+    setSkipping(key);
+    try {
+      await api.skipMarblesTimer(account, channel);
+      await qc.invalidateQueries({ queryKey: ['status'] });
+    } catch {
+      /* swallow — UI will refresh on next status poll */
+    } finally {
+      setSkipping(null);
+    }
+  };
 
   return (
     <Card>
@@ -137,7 +152,7 @@ const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.El
           Marbles Timer
         </CardTitle>
         <Badge variant={slotColor}>
-          {usedSlots} / {MAX_TIMERS}
+          {slotUsage} / {MAX_TIMERS}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
@@ -152,24 +167,48 @@ const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.El
           const ss = (totalSec % 60).toString().padStart(2, '0');
           const totalWindow = 12 * 60;
           const pct = Math.max(0, Math.min(100, (totalSec / totalWindow) * 100));
+          const key = `${t.account}:${t.channel}`;
+          const isSkipping = skipping === key;
           return (
-            <div key={`${t.account}:${t.channel}`} className="space-y-1">
-              <div className="flex items-center justify-between">
+            <div key={key} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
                 <a
                   href={`https://twitch.tv/${t.channel}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-mono hover:text-primary hover:underline"
+                  className={`font-mono hover:underline ${
+                    t.skipped ? 'text-destructive line-through' : 'hover:text-primary'
+                  }`}
                 >
                   {t.channel}
                 </a>
-                <span className="font-mono tabular-nums">
-                  {mm}:{ss}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-mono tabular-nums ${
+                      t.skipped ? 'text-destructive' : ''
+                    }`}
+                  >
+                    {mm}:{ss}
+                  </span>
+                  {!t.skipped && (
+                    <button
+                      type="button"
+                      aria-label={`skip ${t.channel}`}
+                      title="Skip this stream and pick another"
+                      disabled={isSkipping}
+                      onClick={() => void onSkip(t.account, t.channel)}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="h-1 w-full overflow-hidden rounded bg-muted">
                 <div
-                  className="h-full bg-primary transition-[width] duration-500"
+                  className={`h-full transition-[width] duration-500 ${
+                    t.skipped ? 'bg-destructive' : 'bg-primary'
+                  }`}
                   style={{ width: `${pct}%` }}
                 />
               </div>

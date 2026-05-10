@@ -16,6 +16,7 @@ export const MarblesTimerStatus = z.object({
   channel: z.string(),
   startedAt: z.string(),
   expiresAt: z.string(),
+  skipped: z.boolean().default(false),
 });
 export type MarblesTimerStatus = z.infer<typeof MarblesTimerStatus>;
 

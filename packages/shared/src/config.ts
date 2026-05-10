@@ -26,6 +26,7 @@ export const RateLimitConfig = z.object({
 export const ChannelsConfig = z.object({
   whitelist: z.array(z.string()).default([]),
   blacklist: z.array(z.string()).default([]),
+  prefer: z.array(z.string()).default([]),
 });
 
 export const AccountConfig = z.object({

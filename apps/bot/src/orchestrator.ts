@@ -125,8 +125,20 @@ export class Orchestrator {
     };
   }
 
-  activeMarblesTimers(): Array<{ account: string; channel: string; startedAt: string; expiresAt: string }> {
-    const out: Array<{ account: string; channel: string; startedAt: string; expiresAt: string }> = [];
+  activeMarblesTimers(): Array<{
+    account: string;
+    channel: string;
+    startedAt: string;
+    expiresAt: string;
+    skipped: boolean;
+  }> {
+    const out: Array<{
+      account: string;
+      channel: string;
+      startedAt: string;
+      expiresAt: string;
+      skipped: boolean;
+    }> = [];
     for (const b of this.bundles.values()) {
       for (const t of b.timerGuard.active()) {
         out.push({
@@ -134,10 +146,22 @@ export class Orchestrator {
           channel: t.channel,
           startedAt: new Date(t.startedAt).toISOString(),
           expiresAt: new Date(t.expiresAt).toISOString(),
+          skipped: t.skipped,
         });
       }
     }
     return out;
+  }
+
+  async skipMarblesTimer(account: string, channel: string): Promise<boolean> {
+    const bundle = this.bundles.get(account);
+    if (!bundle) return false;
+    const ch = channel.toLowerCase();
+    const ok = bundle.timerGuard.skip(ch);
+    if (!ok) return false;
+    this.logger.info({ account, channel: ch }, 'marbles timer skipped, picking replacement');
+    await this.fillFreeSlots(bundle);
+    return true;
   }
 
   latestDiscovered(): Array<{ login: string; userName: string; viewerCount: number; language: string }> {
@@ -172,13 +196,21 @@ export class Orchestrator {
       cooldownMs: this.deps.config.lobby.cooldownSeconds * 1000,
     });
     const cutoff = Date.now() - MARBLES_WINDOW_MS;
-    const initial = this.deps.timerRepo
-      .list(runtime.name, cutoff)
+    const stored = this.deps.timerRepo.list(runtime.name, cutoff);
+    const initial = stored
+      .filter((t) => !t.skipped)
+      .map((t) => [t.channel, t.startedAt] as [string, number]);
+    const initialSkipped = stored
+      .filter((t) => t.skipped)
       .map((t) => [t.channel, t.startedAt] as [string, number]);
     const timerGuard = new MarblesTimerGuard({
       initial,
+      initialSkipped,
       onRecord: (channel, startedAt) => {
         this.deps.timerRepo.upsert(runtime.name, channel, startedAt);
+      },
+      onSkip: (channel) => {
+        this.deps.timerRepo.markSkipped(runtime.name, channel);
       },
       onExpire: (channel) => {
         this.deps.timerRepo.delete(runtime.name, channel);
@@ -288,5 +320,125 @@ export class Orchestrator {
       joined: [...this.joinedChannels()],
       parted: [],
     });
+
+    await this.handlePreferOnline();
+  }
+
+  private async handlePreferOnline(): Promise<void> {
+    const prefer = (this.deps.config.channels.prefer ?? []).map((s) => s.toLowerCase());
+    if (prefer.length === 0) return;
+    const blacklist = new Set(
+      (this.deps.config.channels.blacklist ?? []).map((s) => s.toLowerCase()),
+    );
+    const preferOnline = prefer
+      .filter((p) => this.latestStreams.has(p) && !blacklist.has(p))
+      .map((login) => ({
+        login,
+        viewerCount: this.latestStreams.get(login)?.viewerCount ?? 0,
+      }));
+    if (preferOnline.length === 0) return;
+    const sortBy = this.deps.config.discovery.sortBy;
+    preferOnline.sort((a, b) =>
+      sortBy === 'least-viewers'
+        ? a.viewerCount - b.viewerCount
+        : b.viewerCount - a.viewerCount,
+    );
+    for (const bundle of this.bundles.values()) {
+      for (const candidate of preferOnline) {
+        const gate = bundle.timerGuard.canSend(candidate.login);
+        if (gate.allowed) {
+          await this.forcePlay(bundle, candidate.login, 'prefer-online');
+        } else if (gate.reason === 'slot-taken') {
+          const victim = bundle.timerGuard.shortestRemaining();
+          if (!victim) continue;
+          if (prefer.includes(victim.channel)) continue;
+          bundle.timerGuard.skip(victim.channel);
+          this.logger.info(
+            { account: bundle.runtime.name, evicted: victim.channel, prefer: candidate.login },
+            'prefer-online: evicting shortest timer to play prefer channel',
+          );
+          await this.forcePlay(bundle, candidate.login, 'prefer-evict');
+        }
+      }
+    }
+  }
+
+  private async fillFreeSlots(bundle: AccountBundle): Promise<void> {
+    const sortBy = this.deps.config.discovery.sortBy;
+    const blacklist = new Set(
+      (this.deps.config.channels.blacklist ?? []).map((s) => s.toLowerCase()),
+    );
+    const prefer = new Set(
+      (this.deps.config.channels.prefer ?? []).map((s) => s.toLowerCase()),
+    );
+    const whitelist = new Set(
+      (this.deps.config.channels.whitelist ?? []).map((s) => s.toLowerCase()),
+    );
+    const candidates = [...this.latestStreams.entries()]
+      .filter(([login]) => !blacklist.has(login))
+      .filter(([login]) =>
+        whitelist.size === 0 || whitelist.has(login) || prefer.has(login),
+      )
+      .filter(([login]) => bundle.timerGuard.canSend(login).allowed)
+      .map(([login, v]) => ({ login, viewerCount: v.viewerCount }));
+    candidates.sort((a, b) => {
+      const aP = prefer.has(a.login) ? 1 : 0;
+      const bP = prefer.has(b.login) ? 1 : 0;
+      if (aP !== bP) return bP - aP;
+      return sortBy === 'least-viewers'
+        ? a.viewerCount - b.viewerCount
+        : b.viewerCount - a.viewerCount;
+    });
+    while (bundle.timerGuard.canSend('__probe__').allowed) {
+      const next = candidates.shift();
+      if (!next) break;
+      const sent = await this.forcePlay(bundle, next.login, 'replacement');
+      if (!sent) continue;
+    }
+  }
+
+  private async forcePlay(
+    bundle: AccountBundle,
+    channel: string,
+    reason: string,
+  ): Promise<boolean> {
+    const gate = bundle.timerGuard.canSend(channel);
+    if (!gate.allowed) return false;
+    if (!bundle.chat.joinedChannels().includes(channel)) {
+      try {
+        await bundle.chat.applyDiff([channel], []);
+      } catch (err) {
+        this.logger.warn({ channel, err }, 'force-play: join failed');
+        return false;
+      }
+    }
+    if (!bundle.bucket.tryConsume(1)) {
+      this.logger.warn({ channel, reason }, 'force-play: rate-limited');
+      return false;
+    }
+    try {
+      await bundle.chat.send(channel, '!play');
+    } catch (err) {
+      this.logger.error({ channel, reason, err }, 'force-play: send failed');
+      return false;
+    }
+    bundle.detector.markSent(channel);
+    bundle.timerGuard.record(channel);
+    this.deps.stats.recordPlay(bundle.runtime.name, channel);
+    this.deps.metrics.playsSentTotal.inc({
+      account: bundle.runtime.name,
+      channel,
+    });
+    this.logger.info(
+      { account: bundle.runtime.name, channel, reason },
+      'force-play sent !play',
+    );
+    this.deps.bus.emit({
+      type: 'play-sent',
+      at: new Date().toISOString(),
+      account: bundle.runtime.name,
+      channel,
+    });
+    return true;
   }
 }

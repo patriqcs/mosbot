@@ -102,6 +102,31 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
     },
   );
 
+  app.post<{ Params: { account: string; channel: string } }>(
+    '/api/marbles-timers/:account/:channel/skip',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const account = req.params.account;
+      const channel = req.params.channel;
+      if (!account || !channel) {
+        return reply.code(400).send({
+          success: false,
+          data: null,
+          error: 'account and channel are required',
+        });
+      }
+      const ok = await deps.orchestrator.skipMarblesTimer(account, channel);
+      if (!ok) {
+        return reply.code(404).send({
+          success: false,
+          data: null,
+          error: 'no active timer for that account/channel',
+        });
+      }
+      return { success: true, data: { skipped: true }, error: null };
+    },
+  );
+
   app.post('/api/bot/start', { preHandler: requireAuth }, async () => {
     await deps.orchestrator.start();
     return { success: true, data: { running: deps.orchestrator.isRunning() }, error: null };

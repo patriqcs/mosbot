@@ -25,6 +25,12 @@ channels:
   whitelist: []
   blacklist:
     - exampleStreamer
+  # Prefer channels are auto-prioritised: when one of these goes live, the bot
+  # always joins (even if a whitelist is set; blacklist still wins). If all 3
+  # Marbles-Timer slots are taken, the slot with the shortest remaining time is
+  # skipped so the preferred channel can be played. The Discovery sortBy decides
+  # which prefer-channel is chosen first when multiple are live.
+  prefer: []
 
 accounts:
   - name: primary
