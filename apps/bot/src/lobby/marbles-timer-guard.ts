@@ -91,6 +91,11 @@ export class MarblesTimerGuard {
     return this.skipped.has(channel.toLowerCase());
   }
 
+  isActive(channel: string): boolean {
+    this.purge();
+    return this.lastSent.has(channel.toLowerCase());
+  }
+
   active(): ActiveTimer[] {
     this.purge();
     const out: ActiveTimer[] = [];

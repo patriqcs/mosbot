@@ -60,6 +60,16 @@ describe('MarblesTimerGuard', () => {
     expect(onExpire).toHaveBeenCalledWith('a');
   });
 
+  it('isActive distinguishes active from skipped/unknown channels', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    g.record('a');
+    g.record('b');
+    g.skip('b');
+    expect(g.isActive('a')).toBe(true);
+    expect(g.isActive('b')).toBe(false);
+    expect(g.isActive('c')).toBe(false);
+  });
+
   it('record clears a skipped channel', () => {
     const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
     g.record('a');

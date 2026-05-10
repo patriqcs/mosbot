@@ -345,6 +345,7 @@ export class Orchestrator {
     );
     for (const bundle of this.bundles.values()) {
       for (const candidate of preferOnline) {
+        if (bundle.timerGuard.isActive(candidate.login)) continue;
         const gate = bundle.timerGuard.canSend(candidate.login);
         if (gate.allowed) {
           await this.forcePlay(bundle, candidate.login, 'prefer-online');
@@ -379,7 +380,8 @@ export class Orchestrator {
       .filter(([login]) =>
         whitelist.size === 0 || whitelist.has(login) || prefer.has(login),
       )
-      .filter(([login]) => bundle.timerGuard.canSend(login).allowed)
+      .filter(([login]) => !bundle.timerGuard.isActive(login))
+      .filter(([login]) => !bundle.timerGuard.isSkipped(login))
       .map(([login, v]) => ({ login, viewerCount: v.viewerCount }));
     candidates.sort((a, b) => {
       const aP = prefer.has(a.login) ? 1 : 0;
@@ -402,6 +404,13 @@ export class Orchestrator {
     channel: string,
     reason: string,
   ): Promise<boolean> {
+    if (bundle.timerGuard.isActive(channel)) {
+      this.logger.debug(
+        { channel, reason },
+        'force-play: channel already has active timer, skipping to avoid reset',
+      );
+      return false;
+    }
     const gate = bundle.timerGuard.canSend(channel);
     if (!gate.allowed) return false;
     if (!bundle.chat.joinedChannels().includes(channel)) {
