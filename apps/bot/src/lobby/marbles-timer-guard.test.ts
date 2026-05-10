@@ -12,7 +12,7 @@ describe('MarblesTimerGuard', () => {
     expect(g.canSend('a').allowed).toBe(true);
   });
 
-  it('skip moves a timer to skipped and frees the slot', () => {
+  it('skip marks a timer as skipped but keeps the slot occupied', () => {
     const onSkip = vi.fn();
     const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3, onSkip });
     g.record('a');
@@ -20,11 +20,40 @@ describe('MarblesTimerGuard', () => {
     g.record('c');
     expect(g.skip('b')).toBe(true);
     expect(onSkip).toHaveBeenCalledWith('b', expect.any(Number));
-    expect(g.canSend('d').allowed).toBe(true);
+    expect(g.canSend('d').allowed).toBe(false);
+    expect(g.canSend('d').reason).toBe('slot-taken');
     expect(g.canSend('b').allowed).toBe(false);
     expect(g.canSend('b').reason).toBe('skipped');
+    expect(g.slotsFree()).toBe(0);
     const skippedTimer = g.active().find((t) => t.channel === 'b');
     expect(skippedTimer?.skipped).toBe(true);
+  });
+
+  it('slotsFree shrinks with active and skipped combined', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    expect(g.slotsFree()).toBe(3);
+    g.record('a');
+    expect(g.slotsFree()).toBe(2);
+    g.record('b');
+    g.skip('b');
+    expect(g.slotsFree()).toBe(1);
+  });
+
+  it('expiring a skipped timer frees its slot', () => {
+    let t = 1000;
+    const g = new MarblesTimerGuard({
+      windowMs: 1_000,
+      maxStreams: 3,
+      now: () => t,
+    });
+    g.record('a');
+    g.record('b');
+    g.record('c');
+    g.skip('b');
+    expect(g.slotsFree()).toBe(0);
+    t = 5_000;
+    expect(g.slotsFree()).toBe(3);
+    expect(g.canSend('d').allowed).toBe(true);
   });
 
   it('shortestRemaining returns active timer with smallest expiry', () => {

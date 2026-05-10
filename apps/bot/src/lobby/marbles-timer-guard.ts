@@ -55,16 +55,22 @@ export class MarblesTimerGuard {
   } {
     const ch = channel.toLowerCase();
     this.purge();
+    const used = this.lastSent.size + this.skipped.size;
     if (this.skipped.has(ch)) {
-      return { allowed: false, activeCount: this.lastSent.size, reason: 'skipped' };
+      return { allowed: false, activeCount: used, reason: 'skipped' };
     }
     if (this.lastSent.has(ch)) {
-      return { allowed: true, activeCount: this.lastSent.size };
+      return { allowed: true, activeCount: used };
     }
-    if (this.lastSent.size >= this.maxStreams) {
-      return { allowed: false, activeCount: this.lastSent.size, reason: 'slot-taken' };
+    if (used >= this.maxStreams) {
+      return { allowed: false, activeCount: used, reason: 'slot-taken' };
     }
-    return { allowed: true, activeCount: this.lastSent.size };
+    return { allowed: true, activeCount: used };
+  }
+
+  slotsFree(): number {
+    this.purge();
+    return Math.max(0, this.maxStreams - (this.lastSent.size + this.skipped.size));
   }
 
   record(channel: string): void {

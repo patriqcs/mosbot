@@ -123,7 +123,7 @@ const MarblesTimersCard = ({ timers }: { timers: MarblesTimerStatus[] }): JSX.El
     .filter((t) => t.remainingMs > 0)
     .sort((a, b) => a.remainingMs - b.remainingMs);
 
-  const slotUsage = active.filter((t) => !t.skipped).length;
+  const slotUsage = active.length;
   const slotColor =
     slotUsage >= MAX_TIMERS
       ? 'destructive'
