@@ -59,6 +59,17 @@ export class LobbyDetector {
     return this.now() < state.cooldownUntil;
   }
 
+  hasObservedLobby(channel: string): boolean {
+    const state = this.channels.get(channel.toLowerCase());
+    if (!state) return false;
+    const cutoff = this.now() - this.windowMs;
+    let distinct = 0;
+    for (const ts of state.recent.values()) {
+      if (ts >= cutoff) distinct++;
+    }
+    return distinct >= this.minPlayers;
+  }
+
   reset(channel?: string): void {
     if (channel) this.channels.delete(channel.toLowerCase());
     else this.channels.clear();

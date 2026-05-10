@@ -3,7 +3,7 @@ import type { EventBus } from '../events/bus.js';
 import type { ChatManager } from '../chat/chat-manager.js';
 import type { TokenBucket } from '../ratelimit/bucket.js';
 import type { LobbyDetector } from './lobby-detector.js';
-import type { MarblesTimerGuard } from './marbles-timer-guard.js';
+import { MarblesTimerLimitError, type MarblesTimerGuard } from './marbles-timer-guard.js';
 
 export interface PlaySchedulerDeps {
   chat: ChatManager;
@@ -50,14 +50,30 @@ export class PlayScheduler {
       this.logger.warn({ channel }, 'rate-limited, dropping !play');
       return 'throttled';
     }
+    let reservedAt: number;
+    try {
+      reservedAt = timerGuard.record(channel);
+    } catch (err) {
+      if (err instanceof MarblesTimerLimitError) {
+        this.logger.warn(
+          {
+            channel,
+            activeChannels: timerGuard.active().map((t) => t.channel),
+          },
+          'marbles hard cap reached at record time, dropping !play',
+        );
+        return 'timer-limit';
+      }
+      throw err;
+    }
     try {
       await chat.send(channel, PLAY_MESSAGE);
     } catch (err) {
+      timerGuard.release(channel, reservedAt);
       this.logger.error({ channel, err }, 'failed to send !play');
       return 'throttled';
     }
     detector.markSent(channel);
-    timerGuard.record(channel);
     const active = timerGuard.active();
     this.logger.info(
       { channel, activeCount: active.length, activeChannels: active.map((t) => t.channel) },

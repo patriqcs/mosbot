@@ -5,7 +5,7 @@ import { Discovery } from './discovery/discovery.js';
 import { ChatManager } from './chat/chat-manager.js';
 import { LobbyDetector } from './lobby/lobby-detector.js';
 import { PlayScheduler } from './lobby/play-scheduler.js';
-import { MarblesTimerGuard } from './lobby/marbles-timer-guard.js';
+import { MarblesTimerGuard, MarblesTimerLimitError } from './lobby/marbles-timer-guard.js';
 import type { MarblesTimerRepo } from './lobby/marbles-timer-repo.js';
 import { TokenBucket } from './ratelimit/bucket.js';
 import { applyFilter, diffChannels } from './chat/channel-differ.js';
@@ -259,16 +259,24 @@ export class Orchestrator {
       if (!triggered) return;
       this.deps.stats.recordLobby(channel, distinctUsers);
       this.deps.metrics.lobbiesDetectedTotal.inc({ channel });
-      void scheduler.schedule(channel, distinctUsers).then((outcome) => {
-        if (outcome === 'sent') {
-          this.deps.stats.recordPlay(runtime.name, channel);
-          this.deps.metrics.playsSentTotal.inc({ account: runtime.name, channel });
-        } else if (outcome === 'throttled') {
-          this.deps.metrics.rateLimitedTotal.inc({ account: runtime.name });
-        } else if (outcome === 'timer-limit') {
-          this.deps.metrics.marblesTimerDropsTotal.inc({ account: runtime.name });
-        }
-      });
+      void scheduler
+        .schedule(channel, distinctUsers)
+        .then((outcome) => {
+          if (outcome === 'sent') {
+            this.deps.stats.recordPlay(runtime.name, channel);
+            this.deps.metrics.playsSentTotal.inc({ account: runtime.name, channel });
+          } else if (outcome === 'throttled') {
+            this.deps.metrics.rateLimitedTotal.inc({ account: runtime.name });
+          } else if (outcome === 'timer-limit') {
+            this.deps.metrics.marblesTimerDropsTotal.inc({ account: runtime.name });
+          }
+        })
+        .catch((err) => {
+          this.logger.error(
+            { err, channel, account: runtime.name },
+            'scheduler.schedule rejected',
+          );
+        });
     });
     this.bundles.set(runtime.name, {
       runtime,
@@ -436,28 +444,61 @@ export class Orchestrator {
       );
       return false;
     }
+    if (!bundle.detector.hasObservedLobby(channel)) {
+      this.logger.debug(
+        { channel, reason },
+        'force-play: no chat-detected marbles lobby in channel, skipping speculative !play',
+      );
+      return false;
+    }
+    if (bundle.detector.isOnCooldown(channel)) {
+      this.logger.debug(
+        { channel, reason },
+        'force-play: detector is in cooldown for channel, skipping',
+      );
+      return false;
+    }
     const gate = bundle.timerGuard.canSend(channel);
     if (!gate.allowed) return false;
+    let reservedAt: number;
+    try {
+      reservedAt = bundle.timerGuard.record(channel);
+    } catch (err) {
+      if (err instanceof MarblesTimerLimitError) {
+        this.logger.warn(
+          {
+            channel,
+            reason,
+            activeChannels: bundle.timerGuard.active().map((t) => t.channel),
+          },
+          'force-play: marbles hard cap reached at record time',
+        );
+        return false;
+      }
+      throw err;
+    }
     if (!bundle.chat.joinedChannels().includes(channel)) {
       try {
         await bundle.chat.applyDiff([channel], []);
       } catch (err) {
+        bundle.timerGuard.release(channel, reservedAt);
         this.logger.warn({ channel, err }, 'force-play: join failed');
         return false;
       }
     }
     if (!bundle.bucket.tryConsume(1)) {
+      bundle.timerGuard.release(channel, reservedAt);
       this.logger.warn({ channel, reason }, 'force-play: rate-limited');
       return false;
     }
     try {
       await bundle.chat.send(channel, '!play');
     } catch (err) {
+      bundle.timerGuard.release(channel, reservedAt);
       this.logger.error({ channel, reason, err }, 'force-play: send failed');
       return false;
     }
     bundle.detector.markSent(channel);
-    bundle.timerGuard.record(channel);
     this.deps.stats.recordPlay(bundle.runtime.name, channel);
     this.deps.metrics.playsSentTotal.inc({
       account: bundle.runtime.name,

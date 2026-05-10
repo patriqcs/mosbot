@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MarblesTimerGuard } from './marbles-timer-guard.js';
+import { MarblesTimerGuard, MarblesTimerLimitError } from './marbles-timer-guard.js';
 
 describe('MarblesTimerGuard', () => {
   it('blocks a 4th channel once 3 timers are active', () => {
@@ -107,5 +107,93 @@ describe('MarblesTimerGuard', () => {
     g.record('a');
     expect(g.isSkipped('a')).toBe(false);
     expect(g.active().find((t) => t.channel === 'a')?.skipped).toBe(false);
+  });
+
+  it('record returns the timestamp it stored', () => {
+    let t = 12345;
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3, now: () => t });
+    expect(g.record('a')).toBe(12345);
+    t = 99999;
+    expect(g.record('b')).toBe(99999);
+  });
+
+  it('release frees a reserved slot and fires onExpire', () => {
+    const onExpire = vi.fn();
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3, onExpire });
+    const ts = g.record('a');
+    expect(g.slotsFree()).toBe(2);
+    expect(g.release('a', ts)).toBe(true);
+    expect(g.slotsFree()).toBe(3);
+    expect(onExpire).toHaveBeenCalledWith('a');
+  });
+
+  it('release is a no-op if the timestamp does not match (newer reservation wins)', () => {
+    let t = 1000;
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3, now: () => t });
+    const staleTs = g.record('a');
+    t = 2000;
+    const newTs = g.record('a');
+    expect(g.release('a', staleTs)).toBe(false);
+    expect(g.isActive('a')).toBe(true);
+    expect(g.active().find((x) => x.channel === 'a')?.startedAt).toBe(newTs);
+  });
+
+  it('release is a no-op for an unknown channel', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    expect(g.release('ghost', 123)).toBe(false);
+  });
+
+  it('record throws MarblesTimerLimitError when adding a new channel would exceed maxStreams', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    g.record('a');
+    g.record('b');
+    g.record('c');
+    expect(() => g.record('d')).toThrow(MarblesTimerLimitError);
+    expect(g.active()).toHaveLength(3);
+  });
+
+  it('record still allows refreshing an already-active channel at cap', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    g.record('a');
+    g.record('b');
+    g.record('c');
+    expect(() => g.record('a')).not.toThrow();
+    expect(g.active()).toHaveLength(3);
+  });
+
+  it('record allows re-activating a skipped channel at cap (net zero change)', () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    g.record('a');
+    g.record('b');
+    g.record('c');
+    g.skip('b');
+    expect(() => g.record('b')).not.toThrow();
+    expect(g.isActive('b')).toBe(true);
+    expect(g.active()).toHaveLength(3);
+  });
+
+  it('hard cap prevents 4th timer even under racy check-then-record pattern', async () => {
+    const g = new MarblesTimerGuard({ windowMs: 60_000, maxStreams: 3 });
+    g.record('a');
+    g.record('b');
+
+    const racyReserve = async (channel: string): Promise<number | 'rejected' | 'limit'> => {
+      const gate = g.canSend(channel);
+      if (!gate.allowed) return 'rejected';
+      await Promise.resolve();
+      try {
+        return g.record(channel);
+      } catch (err) {
+        if (err instanceof MarblesTimerLimitError) return 'limit';
+        throw err;
+      }
+    };
+
+    const results = await Promise.all([racyReserve('c'), racyReserve('d'), racyReserve('e')]);
+    expect(g.active()).toHaveLength(3);
+    const accepted = results.filter((r) => typeof r === 'number');
+    expect(accepted).toHaveLength(1);
+    const blocked = results.filter((r) => r === 'limit');
+    expect(blocked.length).toBeGreaterThanOrEqual(1);
   });
 });

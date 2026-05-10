@@ -81,4 +81,27 @@ describe('LobbyDetector', () => {
     d.markSent('ALICE');
     expect(d.isOnCooldown('alice')).toBe(true);
   });
+
+  it('hasObservedLobby reflects whether minPlayers distinct users posted within the window', () => {
+    const clock = { t: 0, advance(ms: number) { this.t += ms; } };
+    const d = new LobbyDetector({
+      windowMs: 30_000,
+      minPlayers: 3,
+      cooldownMs: 60_000,
+      now: () => clock.t,
+    });
+    expect(d.hasObservedLobby('a')).toBe(false);
+    d.observe('a', 'u1');
+    d.observe('a', 'u2');
+    expect(d.hasObservedLobby('a')).toBe(false);
+    d.observe('a', 'u3');
+    expect(d.hasObservedLobby('a')).toBe(true);
+    clock.advance(30_001);
+    expect(d.hasObservedLobby('a')).toBe(false);
+  });
+
+  it('hasObservedLobby returns false for unknown channel', () => {
+    const d = new LobbyDetector({ windowMs: 30_000, minPlayers: 1, cooldownMs: 60_000 });
+    expect(d.hasObservedLobby('nobody')).toBe(false);
+  });
 });

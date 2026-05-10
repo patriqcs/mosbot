@@ -1,6 +1,17 @@
 const WINDOW_MS = 12 * 60 * 1000;
 const MAX_STREAMS = 3;
 
+export class MarblesTimerLimitError extends Error {
+  readonly channel: string;
+  readonly maxStreams: number;
+  constructor(channel: string, maxStreams: number) {
+    super(`marbles timer limit reached: cannot record '${channel}' (max ${maxStreams})`);
+    this.name = 'MarblesTimerLimitError';
+    this.channel = channel;
+    this.maxStreams = maxStreams;
+  }
+}
+
 export interface MarblesTimerGuardOptions {
   now?: () => number;
   windowMs?: number;
@@ -73,12 +84,28 @@ export class MarblesTimerGuard {
     return Math.max(0, this.maxStreams - (this.lastSent.size + this.skipped.size));
   }
 
-  record(channel: string): void {
+  record(channel: string): number {
     const ch = channel.toLowerCase();
+    this.purge();
+    const isExisting = this.lastSent.has(ch) || this.skipped.has(ch);
+    if (!isExisting && this.lastSent.size + this.skipped.size >= this.maxStreams) {
+      throw new MarblesTimerLimitError(ch, this.maxStreams);
+    }
     const ts = this.now();
     this.lastSent.set(ch, ts);
     this.skipped.delete(ch);
     this.onRecord?.(ch, ts);
+    return ts;
+  }
+
+  release(channel: string, expectedStartedAt: number): boolean {
+    const ch = channel.toLowerCase();
+    const current = this.lastSent.get(ch);
+    if (current === undefined) return false;
+    if (current !== expectedStartedAt) return false;
+    this.lastSent.delete(ch);
+    this.onExpire?.(ch);
+    return true;
   }
 
   skip(channel: string): boolean {
