@@ -371,7 +371,9 @@ export class Orchestrator {
         if (bundle.timerGuard.isSkipped(candidate.login)) continue;
         const gate = bundle.timerGuard.canSend(candidate.login);
         if (gate.allowed) {
-          await this.forcePlay(bundle, candidate.login, 'prefer-online');
+          await this.forcePlay(bundle, candidate.login, 'prefer-online', {
+            requireObservedLobby: false,
+          });
         } else if (gate.reason === 'slot-taken') {
           const victim = bundle.timerGuard.shortestRemaining();
           if (!victim) continue;
@@ -436,7 +438,9 @@ export class Orchestrator {
     bundle: AccountBundle,
     channel: string,
     reason: string,
+    opts: { requireObservedLobby?: boolean } = {},
   ): Promise<boolean> {
+    const { requireObservedLobby = true } = opts;
     if (bundle.timerGuard.isActive(channel)) {
       this.logger.debug(
         { channel, reason },
@@ -444,7 +448,7 @@ export class Orchestrator {
       );
       return false;
     }
-    if (!bundle.detector.hasObservedLobby(channel)) {
+    if (requireObservedLobby && !bundle.detector.hasObservedLobby(channel)) {
       this.logger.debug(
         { channel, reason },
         'force-play: no chat-detected marbles lobby in channel, skipping speculative !play',
