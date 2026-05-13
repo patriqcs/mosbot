@@ -57,7 +57,9 @@ describe('Discovery.fetchLiveStreamsForLogins', () => {
     const out = await d.fetchLiveStreamsForLogins(['Alice', 'BOB', 'alice']);
 
     expect(out.map((s) => s.userLogin).sort()).toEqual(['alice', 'bob']);
-    const [url] = fetchSpy.mock.calls[0];
+    const firstCall = fetchSpy.mock.calls[0];
+    if (!firstCall) throw new Error('expected fetch to be called');
+    const url = String(firstCall[0]);
     expect(url).toContain('/streams?');
     expect(url).toContain('user_login=alice');
     expect(url).toContain('user_login=bob');
