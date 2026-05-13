@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsUpDown, Star } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StreamListItem } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -93,16 +93,29 @@ export const StreamsPage = (): JSX.Element => {
             </thead>
             <tbody>
               {sorted.map((s) => (
-                <tr key={s.userLogin} className="border-b last:border-0">
+                <tr
+                  key={s.userLogin}
+                  className={`border-b last:border-0 ${
+                    s.preferred ? 'bg-amber-500/10' : ''
+                  }`}
+                >
                   <td className="pl-4 pr-2 py-2 font-mono text-left truncate">
-                    <a
-                      href={`https://twitch.tv/${s.userLogin}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-primary hover:underline"
-                    >
-                      {s.userLogin}
-                    </a>
+                    <div className="inline-flex items-center gap-2">
+                      {s.preferred && (
+                        <Star
+                          className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400"
+                          aria-label="preferred"
+                        />
+                      )}
+                      <a
+                        href={`https://twitch.tv/${s.userLogin}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-primary hover:underline"
+                      >
+                        {s.userLogin}
+                      </a>
+                    </div>
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{s.viewerCount.toLocaleString()}</td>
                   <td className="px-4 py-2 text-center">{s.language}</td>
@@ -111,6 +124,11 @@ export const StreamsPage = (): JSX.Element => {
                       <Badge variant={s.joined ? 'success' : 'outline'}>
                         {s.joined ? 'yes' : 'no'}
                       </Badge>
+                      {s.preferred && (
+                        <Badge className="border-transparent bg-amber-500 text-white">
+                          preferred
+                        </Badge>
+                      )}
                       {s.blacklisted && <Badge variant="destructive">blacklisted</Badge>}
                       {s.whitelisted && <Badge variant="secondary">whitelisted</Badge>}
                     </div>

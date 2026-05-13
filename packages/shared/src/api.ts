@@ -40,6 +40,7 @@ export const StreamListItem = StreamInfo.extend({
   playsSent: z.number().int().nonnegative(),
   blacklisted: z.boolean(),
   whitelisted: z.boolean(),
+  preferred: z.boolean(),
 });
 export type StreamListItem = z.infer<typeof StreamListItem>;
 

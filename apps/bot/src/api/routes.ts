@@ -41,6 +41,7 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
     const joined = deps.orchestrator.joinedChannels();
     const wl = new Set(deps.config.channels.whitelist.map((s) => s.toLowerCase()));
     const bl = new Set(deps.config.channels.blacklist.map((s) => s.toLowerCase()));
+    const pf = new Set((deps.config.channels.prefer ?? []).map((s) => s.toLowerCase()));
     const streams = deps.orchestrator.latestDiscovered().map((s) => ({
       userId: '',
       userLogin: s.login,
@@ -55,6 +56,7 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
       playsSent: deps.stats.playsForChannel(s.login),
       blacklisted: bl.has(s.login),
       whitelisted: wl.has(s.login),
+      preferred: pf.has(s.login),
     }));
     return { success: true, data: streams, error: null };
   });
