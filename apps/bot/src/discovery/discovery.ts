@@ -74,6 +74,23 @@ export class Discovery {
     return game.id;
   }
 
+  async fetchLiveStreamsForLogins(logins: string[]): Promise<StreamInfo[]> {
+    const uniq = [...new Set(logins.map((l) => l.toLowerCase()).filter(Boolean))];
+    if (uniq.length === 0) return [];
+    const out: StreamInfo[] = [];
+    for (let i = 0; i < uniq.length; i += 100) {
+      const batch = uniq.slice(i, i + 100);
+      const params = new URLSearchParams();
+      for (const login of batch) params.append('user_login', login);
+      params.append('first', '100');
+      const json = await this.helix<{ data: HelixStreamRaw[] }>(
+        `/streams?${params.toString()}`,
+      );
+      for (const s of json.data) out.push(toStreamInfo(s));
+    }
+    return out;
+  }
+
   async fetchLiveStreams(): Promise<StreamInfo[]> {
     const gameId = await this.resolveGameId();
     const { maxStreams, minViewers, language, sortBy } = this.deps.config;

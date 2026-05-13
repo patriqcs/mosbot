@@ -305,7 +305,25 @@ export class Orchestrator {
     const primary = this.bundles.values().next().value;
     if (!primary) return;
     const start = Date.now();
-    const streams = await primary.discovery.fetchLiveStreams();
+    const mainStreams = await primary.discovery.fetchLiveStreams();
+
+    const blacklist = new Set(
+      (this.deps.config.channels.blacklist ?? []).map((s) => s.toLowerCase()),
+    );
+    const preferList = (this.deps.config.channels.prefer ?? []).map((s) => s.toLowerCase());
+    const seen = new Set(mainStreams.map((s) => s.userLogin));
+    const preferToCheck = preferList.filter((p) => !seen.has(p) && !blacklist.has(p));
+    let preferStreams: typeof mainStreams = [];
+    if (preferToCheck.length > 0) {
+      preferStreams = await primary.discovery
+        .fetchLiveStreamsForLogins(preferToCheck)
+        .catch((err) => {
+          this.logger.warn({ err }, 'prefer-live check failed');
+          return [];
+        });
+    }
+    const streams = [...mainStreams, ...preferStreams];
+
     const elapsed = (Date.now() - start) / 1000;
     this.deps.metrics.discoveryDuration.observe(elapsed);
 
