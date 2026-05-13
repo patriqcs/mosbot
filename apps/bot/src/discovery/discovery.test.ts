@@ -66,6 +66,26 @@ describe('Discovery.fetchLiveStreamsForLogins', () => {
     expect(url).not.toContain('game_id');
   });
 
+  it('filters out streams whose game_id does not match requireGameId', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { ...helixStream('alice'), game_id: '12345' },
+          { ...helixStream('bob'), game_id: '99999' },
+        ],
+      }),
+    });
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const d = new Discovery(makeDeps());
+    const out = await d.fetchLiveStreamsForLogins(['alice', 'bob'], {
+      requireGameId: '12345',
+    });
+
+    expect(out.map((s) => s.userLogin)).toEqual(['alice']);
+  });
+
   it('batches in chunks of 100', async () => {
     const fetchSpy = vi
       .fn()

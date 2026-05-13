@@ -74,7 +74,10 @@ export class Discovery {
     return game.id;
   }
 
-  async fetchLiveStreamsForLogins(logins: string[]): Promise<StreamInfo[]> {
+  async fetchLiveStreamsForLogins(
+    logins: string[],
+    opts: { requireGameId?: string } = {},
+  ): Promise<StreamInfo[]> {
     const uniq = [...new Set(logins.map((l) => l.toLowerCase()).filter(Boolean))];
     if (uniq.length === 0) return [];
     const out: StreamInfo[] = [];
@@ -86,7 +89,10 @@ export class Discovery {
       const json = await this.helix<{ data: HelixStreamRaw[] }>(
         `/streams?${params.toString()}`,
       );
-      for (const s of json.data) out.push(toStreamInfo(s));
+      for (const s of json.data) {
+        if (opts.requireGameId && s.game_id !== opts.requireGameId) continue;
+        out.push(toStreamInfo(s));
+      }
     }
     return out;
   }

@@ -315,12 +315,20 @@ export class Orchestrator {
     const preferToCheck = preferList.filter((p) => !seen.has(p) && !blacklist.has(p));
     let preferStreams: typeof mainStreams = [];
     if (preferToCheck.length > 0) {
-      preferStreams = await primary.discovery
-        .fetchLiveStreamsForLogins(preferToCheck)
+      const marblesGameId = await primary.discovery
+        .resolveGameId()
         .catch((err) => {
-          this.logger.warn({ err }, 'prefer-live check failed');
-          return [];
+          this.logger.warn({ err }, 'prefer-live: resolveGameId failed');
+          return null;
         });
+      if (marblesGameId) {
+        preferStreams = await primary.discovery
+          .fetchLiveStreamsForLogins(preferToCheck, { requireGameId: marblesGameId })
+          .catch((err) => {
+            this.logger.warn({ err }, 'prefer-live check failed');
+            return [];
+          });
+      }
     }
     const streams = [...mainStreams, ...preferStreams];
 
@@ -389,9 +397,7 @@ export class Orchestrator {
         if (bundle.timerGuard.isSkipped(candidate.login)) continue;
         const gate = bundle.timerGuard.canSend(candidate.login);
         if (gate.allowed) {
-          await this.forcePlay(bundle, candidate.login, 'prefer-online', {
-            requireObservedLobby: false,
-          });
+          await this.forcePlay(bundle, candidate.login, 'prefer-online');
         } else if (gate.reason === 'slot-taken') {
           const victim = bundle.timerGuard.shortestRemaining();
           if (!victim) continue;
@@ -456,9 +462,7 @@ export class Orchestrator {
     bundle: AccountBundle,
     channel: string,
     reason: string,
-    opts: { requireObservedLobby?: boolean } = {},
   ): Promise<boolean> {
-    const { requireObservedLobby = true } = opts;
     if (bundle.timerGuard.isActive(channel)) {
       this.logger.debug(
         { channel, reason },
@@ -466,7 +470,7 @@ export class Orchestrator {
       );
       return false;
     }
-    if (requireObservedLobby && !bundle.detector.hasObservedLobby(channel)) {
+    if (!bundle.detector.hasObservedLobby(channel)) {
       this.logger.debug(
         { channel, reason },
         'force-play: no chat-detected marbles lobby in channel, skipping speculative !play',
