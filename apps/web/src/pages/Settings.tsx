@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldHelp, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
+import { useAutoSave } from '@/lib/useAutoSave';
+import { UndoToast, ErrorToast } from '@/components/UndoToast';
 
 type Mode = 'form' | 'yaml';
 
@@ -66,22 +68,40 @@ const isValidTimezone = (tz: string): boolean => {
 const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const;
 
 export const SettingsPage = (): JSX.Element => {
-  const [mode, setMode] = useState<Mode>('form');
-  const [raw, setRaw] = useState('');
-  const [path, setPath] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [initial, setInitial] = useState<{ raw: string; path: string } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .getConfig()
-      .then(({ raw: r, path: p }) => {
-        setRaw(r);
-        setPath(p);
-      })
-      .catch((err: Error) => setError(err.message));
+      .then(setInitial)
+      .catch((err: Error) => setLoadError(err.message));
   }, []);
+
+  if (loadError) {
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        {loadError}
+      </div>
+    );
+  }
+  if (!initial) {
+    return <p className="text-sm text-muted-foreground">Loading settings…</p>;
+  }
+  return <SettingsEditor initialRaw={initial.raw} path={initial.path} />;
+};
+
+interface SettingsEditorProps {
+  initialRaw: string;
+  path: string;
+}
+
+const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element => {
+  const [mode, setMode] = useState<Mode>('form');
+  const { raw, setRaw, undoState, undo, dismissUndo, error, clearError } = useAutoSave(
+    initialRaw,
+    api.saveConfig,
+  );
 
   const parsed = useMemo<EditableConfig | null>(() => {
     if (!raw) return null;
@@ -108,98 +128,73 @@ export const SettingsPage = (): JSX.Element => {
     setRaw(dumpYaml(merged, { lineWidth: 100, noRefs: true }));
   };
 
-  const save = async (): Promise<void> => {
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await api.saveConfig(raw);
-      setNotice(
-        res.restartRequired
-          ? 'Saved. Restart the container to apply changes.'
-          : 'Saved.',
-      );
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <div className="flex gap-2">
-          <Button
-            variant={mode === 'form' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('form')}
-          >
-            Form
-          </Button>
-          <Button
-            variant={mode === 'yaml' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('yaml')}
-          >
-            YAML
-          </Button>
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <div className="flex gap-2">
+            <Button
+              variant={mode === 'form' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMode('form')}
+            >
+              Form
+            </Button>
+            <Button
+              variant={mode === 'yaml' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMode('yaml')}
+            >
+              YAML
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {path && (
         <p className="text-xs text-muted-foreground">
-          Editing <code>{path}</code>. Secrets (<code>{'${TWITCH_CLIENT_ID}'}</code>,{' '}
-          <code>{'${DASHBOARD_PASSWORD_HASH}'}</code>) are env-var references — do not edit.
+          Editing <code>{path}</code>. Changes save automatically and apply live where
+          possible. Secrets (<code>{'${TWITCH_CLIENT_ID}'}</code>,{' '}
+          <code>{'${DASHBOARD_PASSWORD_HASH}'}</code>) are env-var references — do not
+          edit.
         </p>
-      )}
 
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
-          {notice}
-        </div>
-      )}
+        {mode === 'form' && parsed && (
+          <FormView config={parsed} onChange={updateRawFromForm} />
+        )}
+        {mode === 'form' && !parsed && raw && (
+          <Card>
+            <CardContent className="py-4 text-sm text-muted-foreground">
+              YAML is currently invalid — switch to YAML mode to fix.
+            </CardContent>
+          </Card>
+        )}
 
-      {mode === 'form' && parsed && (
-        <FormView config={parsed} onChange={updateRawFromForm} />
-      )}
-      {mode === 'form' && !parsed && raw && (
-        <Card>
-          <CardContent className="py-4 text-sm text-muted-foreground">
-            YAML is currently invalid — switch to YAML mode to fix.
-          </CardContent>
-        </Card>
-      )}
-
-      {mode === 'yaml' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>YAML</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <textarea
-              value={raw}
-              onChange={(e) => setRaw(e.target.value)}
-              spellCheck={false}
-              className="h-[60vh] w-full rounded-md border bg-background p-3 font-mono text-xs"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving || !raw}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
+        {mode === 'yaml' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>YAML</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <textarea
+                value={raw}
+                onChange={(e) => setRaw(e.target.value)}
+                spellCheck={false}
+                className="h-[60vh] w-full rounded-md border bg-background p-3 font-mono text-xs"
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
-    </div>
+
+      {error && <ErrorToast message={error} onDismiss={clearError} />}
+      {!error && undoState && (
+        <UndoToast
+          count={undoState.count}
+          restartRequired={undoState.lastResult.restartRequired}
+          onUndo={() => void undo()}
+          onDismiss={dismissUndo}
+        />
+      )}
     </TooltipProvider>
   );
 };

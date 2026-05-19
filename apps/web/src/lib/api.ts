@@ -85,7 +85,14 @@ export const api = {
     const res = await fetch('/api/config', { credentials: 'include' });
     return unwrap(res);
   },
-  saveConfig: async (raw: string): Promise<{ restartRequired: boolean; path: string }> => {
+  saveConfig: async (
+    raw: string,
+  ): Promise<{
+    restartRequired: boolean;
+    restartRequiredSections: string[];
+    appliedSections: string[];
+    path: string;
+  }> => {
     const res = await fetch('/api/config', {
       method: 'PUT',
       credentials: 'include',
