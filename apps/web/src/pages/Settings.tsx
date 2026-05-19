@@ -7,8 +7,15 @@ import { FieldHelp, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 import { useAutoSave } from '@/lib/useAutoSave';
 import { UndoToast, ErrorToast } from '@/components/UndoToast';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type Mode = 'form' | 'yaml';
+
+interface AccountEntry {
+  name: string;
+  enabled: boolean;
+  clientId: string;
+}
 
 interface EditableConfig {
   discovery: {
@@ -44,6 +51,13 @@ interface EditableConfig {
     end: string;
     timezone: string;
   };
+  accounts: AccountEntry[];
+  server: {
+    host: string;
+    port: number;
+    auth: { username: string; passwordHash: string };
+  };
+  database: { path: string };
 }
 
 const TIME_24H = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -102,6 +116,14 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
     initialRaw,
     api.saveConfig,
   );
+  const [restartPending, setRestartPending] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!undoState) return;
+    const sections = undoState.lastResult.restartRequiredSections;
+    if (sections.length === 0) return;
+    setRestartPending((prev) => Array.from(new Set([...prev, ...sections])));
+  }, [undoState]);
 
   const parsed = useMemo<EditableConfig | null>(() => {
     if (!raw) return null;
@@ -158,8 +180,33 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
           edit.
         </p>
 
+        {restartPending.length > 0 && (
+          <div className="flex items-start justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <div>
+              <p className="font-medium text-amber-700 dark:text-amber-300">
+                Container restart required
+              </p>
+              <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">
+                Pending sections: {restartPending.join(', ')}. The new values are saved
+                in the YAML on disk and will take effect on the next container restart.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRestartPending([])}
+              className="text-amber-700/70 hover:text-amber-700 dark:text-amber-300/70 dark:hover:text-amber-300"
+              aria-label="dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {mode === 'form' && parsed && (
-          <FormView config={parsed} onChange={updateRawFromForm} />
+          <>
+            <FormView config={parsed} onChange={updateRawFromForm} />
+            <RestartRequiredSections config={parsed} onApply={updateRawFromForm} />
+          </>
         )}
         {mode === 'form' && !parsed && raw && (
           <Card>
@@ -172,15 +219,18 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
         {mode === 'yaml' && (
           <Card>
             <CardHeader>
-              <CardTitle>YAML</CardTitle>
+              <CardTitle>YAML (read-only)</CardTitle>
             </CardHeader>
             <CardContent>
               <textarea
                 value={raw}
-                onChange={(e) => setRaw(e.target.value)}
+                readOnly
                 spellCheck={false}
-                className="h-[60vh] w-full rounded-md border bg-background p-3 font-mono text-xs"
+                className="h-[60vh] w-full rounded-md border bg-muted/30 p-3 font-mono text-xs"
               />
+              <p className="mt-2 text-xs text-muted-foreground">
+                YAML viewing only. Use the Form mode to edit settings.
+              </p>
             </CardContent>
           </Card>
         )}
@@ -196,6 +246,308 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
         />
       )}
     </TooltipProvider>
+  );
+};
+
+interface RestartRequiredSectionsProps {
+  config: EditableConfig;
+  onApply: (next: EditableConfig) => void;
+}
+
+const RestartRequiredSections = ({
+  config,
+  onApply,
+}: RestartRequiredSectionsProps): JSX.Element => (
+  <div className="flex flex-col gap-4">
+    <div className="flex items-center gap-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Requires container restart
+      </h2>
+      <FieldHelp text="Changes in these sections need a container restart to take effect. Each section has its own Apply button with a confirmation dialog so you don't trigger a restart by accident." />
+    </div>
+    <div className="grid gap-6 md:grid-cols-2">
+      <AccountsCard
+        value={config.accounts}
+        onApply={(next) => onApply({ ...config, accounts: next })}
+      />
+      <ServerBindCard
+        value={{ host: config.server.host, port: config.server.port }}
+        onApply={(next) =>
+          onApply({ ...config, server: { ...config.server, ...next } })
+        }
+      />
+      <DatabaseCard
+        value={config.database}
+        onApply={(next) => onApply({ ...config, database: next })}
+      />
+      <LogRotateCard
+        value={config.logging.rotateDays}
+        onApply={(next) =>
+          onApply({ ...config, logging: { ...config.logging, rotateDays: next } })
+        }
+      />
+    </div>
+  </div>
+);
+
+interface AccountsCardProps {
+  value: AccountEntry[];
+  onApply: (next: AccountEntry[]) => void;
+}
+
+const AccountsCard = ({ value, onApply }: AccountsCardProps): JSX.Element => {
+  const [draft, setDraft] = useState<AccountEntry[]>(value);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => setDraft(value), [value]);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(value);
+  const updateRow = (i: number, patch: Partial<AccountEntry>): void => {
+    setDraft(draft.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+  };
+  const addRow = (): void =>
+    setDraft([...draft, { name: '', enabled: false, clientId: '${TWITCH_CLIENT_ID}' }]);
+  const removeRow = (i: number): void => setDraft(draft.filter((_, idx) => idx !== i));
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Accounts</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!dirty}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Apply (restart)
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Twitch bot accounts. Adding, removing or toggling an account requires a
+          container restart. The Client ID typically references an env var, e.g.
+          <code> ${'${TWITCH_CLIENT_ID}'}</code>.
+        </p>
+        {draft.length === 0 && (
+          <p className="text-xs text-muted-foreground">No accounts configured.</p>
+        )}
+        {draft.map((account, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 md:grid-cols-[1fr_auto_2fr_auto]"
+          >
+            <Input
+              value={account.name}
+              onChange={(e) => updateRow(i, { name: e.target.value })}
+              placeholder="account name"
+            />
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={account.enabled}
+                onChange={(e) => updateRow(i, { enabled: e.target.checked })}
+                className="h-4 w-4"
+              />
+              enabled
+            </label>
+            <Input
+              value={account.clientId}
+              onChange={(e) => updateRow(i, { clientId: e.target.value })}
+              placeholder="${TWITCH_CLIENT_ID}"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => removeRow(i)}
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          Add account
+        </Button>
+      </CardContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Apply account changes?"
+        description={
+          <span>
+            Account add/remove/enable changes only take effect after a container restart.
+            The new values will be saved to the YAML on disk now; you must restart the
+            container yourself to load them.
+          </span>
+        }
+        confirmLabel="Save now"
+        onConfirm={() => onApply(draft)}
+      />
+    </Card>
+  );
+};
+
+interface ServerBindValue {
+  host: string;
+  port: number;
+}
+
+interface ServerBindCardProps {
+  value: ServerBindValue;
+  onApply: (next: ServerBindValue) => void;
+}
+
+const ServerBindCard = ({ value, onApply }: ServerBindCardProps): JSX.Element => {
+  const [draft, setDraft] = useState<ServerBindValue>(value);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const dirty = draft.host !== value.host || draft.port !== value.port;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Server bind</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!dirty}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Apply (restart)
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <LabeledText
+          label="Host"
+          help="IP address the HTTP API binds to. 0.0.0.0 = all interfaces (typical for Docker). Restart-required because the listener is bound once at startup."
+          value={draft.host}
+          onChange={(host) => setDraft({ ...draft, host })}
+        />
+        <LabeledNumber
+          label="Port"
+          help="Port number the HTTP API listens on. Make sure the host firewall and Docker port mapping match. Default 8787."
+          min={1}
+          max={65535}
+          value={draft.port}
+          onChange={(port) => setDraft({ ...draft, port })}
+        />
+      </CardContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Apply server bind changes?"
+        description={
+          <span>
+            Changing host or port requires a container restart. The new values will be
+            saved to YAML now; restart the container to reload.
+          </span>
+        }
+        confirmLabel="Save now"
+        onConfirm={() => onApply(draft)}
+      />
+    </Card>
+  );
+};
+
+interface DatabaseCardProps {
+  value: { path: string };
+  onApply: (next: { path: string }) => void;
+}
+
+const DatabaseCard = ({ value, onApply }: DatabaseCardProps): JSX.Element => {
+  const [draft, setDraft] = useState(value);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const dirty = draft.path !== value.path;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Database</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!dirty}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Apply (restart)
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <LabeledText
+          label="SQLite file path"
+          help="Where the SQLite database file lives inside the container. The mapped volume on the host must point to this path. Changing it without migrating data effectively starts a fresh database."
+          value={draft.path}
+          onChange={(path) => setDraft({ path })}
+        />
+      </CardContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Apply database path change?"
+        description={
+          <span>
+            Pointing at a different SQLite file means the bot will use a different
+            database on the next start. Any in-memory state (stats, chat log, timers)
+            stays in the old file; the new file starts empty unless you copied data.
+          </span>
+        }
+        confirmLabel="Save now"
+        destructive
+        onConfirm={() => onApply(draft)}
+      />
+    </Card>
+  );
+};
+
+interface LogRotateCardProps {
+  value: number;
+  onApply: (next: number) => void;
+}
+
+const LogRotateCard = ({ value, onApply }: LogRotateCardProps): JSX.Element => {
+  const [draft, setDraft] = useState(value);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const dirty = draft !== value;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Log rotation</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!dirty}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Apply (restart)
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <LabeledNumber
+          label="Rotate after (days)"
+          help="Log files older than this are deleted by pino-roll. The rotation interval is configured once at startup, so changing it needs a container restart."
+          min={1}
+          max={365}
+          value={draft}
+          onChange={setDraft}
+        />
+      </CardContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Apply log rotation change?"
+        description={
+          <span>
+            Log-file rotation is configured once at container startup. The new value
+            will be saved to YAML now and applied on the next restart.
+          </span>
+        }
+        confirmLabel="Save now"
+        onConfirm={() => onApply(draft)}
+      />
+    </Card>
   );
 };
 
@@ -377,12 +729,36 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle>Schedule (Zeitschaltuhr)</CardTitle>
+          <CardTitle>Schedule</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <ScheduleEditor
             value={config.schedule}
             onChange={(v) => update('schedule', v)}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard login</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <LabeledText
+            label="Username"
+            help="Username for the dashboard login form. Read live on each request — change applies immediately."
+            value={config.server.auth.username}
+            onChange={(v) =>
+              update('server', { auth: { ...config.server.auth, username: v } })
+            }
+          />
+          <LabeledText
+            label="Password hash (argon2)"
+            help="Argon2 password hash. If you reference an env var like ${DASHBOARD_PASSWORD_HASH}, do not edit here — change it on the container. Otherwise paste a fresh argon2 hash."
+            value={config.server.auth.passwordHash}
+            onChange={(v) =>
+              update('server', { auth: { ...config.server.auth, passwordHash: v } })
+            }
           />
         </CardContent>
       </Card>
@@ -518,8 +894,8 @@ const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element =
   return (
     <div className="space-y-3">
       <LabeledCheckbox
-        label="Zeitschaltuhr aktiviert"
-        help="Wenn aktiv: Bot läuft nur im Fenster Start–Ende. Außerhalb wird er automatisch gestoppt. Manueller Start/Stop überschreibt bis zum nächsten Übergang."
+        label="Schedule enabled"
+        help="When on, the bot only runs inside the Start–End window. Outside the window it is automatically stopped. A manual Start/Stop overrides until the next schedule edge."
         value={value.enabled}
         onChange={(v) => onChange({ ...value, enabled: v })}
       />
@@ -527,7 +903,7 @@ const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element =
         <div className="flex flex-col gap-1">
           <label className="flex items-center gap-1.5 text-xs font-medium">
             Start (24h)
-            <FieldHelp text="Uhrzeit, ab der der Bot läuft. Format HH:MM, 24-Stunden-Format. Interpretiert in der unten gewählten Zeitzone." />
+            <FieldHelp text="Time of day when the bot starts. HH:MM, 24-hour format. Interpreted in the timezone selected below." />
           </label>
           <Input
             type="time"
@@ -537,13 +913,13 @@ const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element =
             disabled={!value.enabled}
           />
           {startInvalid && (
-            <p className="text-xs text-destructive">Ungültige Zeit. Format: HH:MM</p>
+            <p className="text-xs text-destructive">Invalid time. Expected HH:MM.</p>
           )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="flex items-center gap-1.5 text-xs font-medium">
-            Ende (24h)
-            <FieldHelp text="Uhrzeit, ab der der Bot gestoppt wird. Ist Ende kleiner als Start, läuft der Bot über Mitternacht hinweg (z.B. 22:00–06:00)." />
+            End (24h)
+            <FieldHelp text="Time of day when the bot stops. If End is earlier than Start, the window crosses midnight (e.g. 22:00–06:00)." />
           </label>
           <Input
             type="time"
@@ -553,13 +929,13 @@ const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element =
             disabled={!value.enabled}
           />
           {endInvalid && (
-            <p className="text-xs text-destructive">Ungültige Zeit. Format: HH:MM</p>
+            <p className="text-xs text-destructive">Invalid time. Expected HH:MM.</p>
           )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="flex items-center gap-1.5 text-xs font-medium">
-            Zeitzone
-            <FieldHelp text="IANA-Zeitzone wie 'Europe/Berlin' oder 'America/New_York'. Bestimmt, wie 'Start' und 'Ende' interpretiert werden. DST/Sommerzeit wird automatisch berücksichtigt." />
+            Timezone
+            <FieldHelp text="IANA timezone such as 'Europe/Berlin' or 'America/New_York'. Determines how Start and End are interpreted. DST is handled automatically." />
           </label>
           <div className="flex gap-2">
             <Input
@@ -574,30 +950,28 @@ const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element =
               size="sm"
               onClick={() => onChange({ ...value, timezone: detectBrowserTimezone() })}
               disabled={!value.enabled}
-              title="Browser-Zeitzone automatisch erkennen"
+              title="Detect browser timezone"
             >
               Auto
             </Button>
           </div>
           {tzInvalid && value.enabled && (
             <p className="text-xs text-destructive">
-              Ungültige IANA-Zeitzone (z.B. “Europe/Berlin”).
+              Invalid IANA timezone (e.g. &ldquo;Europe/Berlin&rdquo;).
             </p>
           )}
         </div>
       </div>
       {sameTime && value.enabled && (
-        <p className="text-xs text-destructive">
-          Start und Ende dürfen nicht identisch sein.
-        </p>
+        <p className="text-xs text-destructive">Start and End must differ.</p>
       )}
       {overnight && value.enabled && !sameTime && !startInvalid && !endInvalid && (
         <p className="text-xs text-muted-foreground">
-          Übernacht-Fenster: Bot läuft von {value.start} über Mitternacht bis {value.end}.
+          Overnight window: bot runs from {value.start} across midnight until {value.end}.
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Änderungen an diesem Block wirken sofort, ohne Container-Restart.
+        Schedule changes apply live without a container restart.
       </p>
     </div>
   );
