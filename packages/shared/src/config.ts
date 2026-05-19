@@ -55,6 +55,39 @@ export const DatabaseConfig = z.object({
   path: z.string().min(1).default('/data/mosbot.db'),
 });
 
+const TIME_24H = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const isValidTimezone = (tz: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const ScheduleConfig = z
+  .object({
+    enabled: z.boolean().default(false),
+    start: z
+      .string()
+      .regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "08:00")')
+      .default('08:00'),
+    end: z
+      .string()
+      .regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "22:00")')
+      .default('22:00'),
+    timezone: z
+      .string()
+      .min(1)
+      .refine(isValidTimezone, 'invalid IANA timezone (e.g. "Europe/Berlin")')
+      .default('UTC'),
+  })
+  .refine((s) => s.start !== s.end, {
+    message: 'start and end must differ',
+    path: ['end'],
+  });
+
 export const AppConfig = z.object({
   discovery: DiscoveryConfig,
   lobby: LobbyConfig,
@@ -64,6 +97,12 @@ export const AppConfig = z.object({
   server: ServerConfig,
   logging: LoggingConfig,
   database: DatabaseConfig,
+  schedule: ScheduleConfig.default({
+    enabled: false,
+    start: '08:00',
+    end: '22:00',
+    timezone: 'UTC',
+  }),
 });
 
 export type AppConfig = z.infer<typeof AppConfig>;
@@ -75,3 +114,4 @@ export type AccountConfig = z.infer<typeof AccountConfig>;
 export type ServerConfig = z.infer<typeof ServerConfig>;
 export type LoggingConfig = z.infer<typeof LoggingConfig>;
 export type DatabaseConfig = z.infer<typeof DatabaseConfig>;
+export type ScheduleConfig = z.infer<typeof ScheduleConfig>;

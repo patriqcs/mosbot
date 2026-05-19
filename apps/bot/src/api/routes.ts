@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { StatsRange } from '@mosbot/shared';
 import { requireAuth } from './auth.js';
 import type { Orchestrator } from '../orchestrator.js';
+import type { ScheduleRunner } from '../schedule/schedule-runner.js';
 import type { AuthManager } from '../auth/auth-manager.js';
 import type { StatsRepo } from '../stats/repo.js';
 import type { AppConfig } from '@mosbot/shared';
@@ -10,9 +11,11 @@ import type { Metrics } from '../metrics.js';
 import type { LoggerConfig } from '../logger.js';
 import { setLogLevel } from '../logger.js';
 import { ConfigError, parseRawConfig } from '../config/loader.js';
+import { canHotReload } from './config-diff.js';
 
 export interface ApiRoutesDeps {
   orchestrator: Orchestrator;
+  scheduleRunner: ScheduleRunner;
   auth: AuthManager;
   stats: StatsRepo;
   config: AppConfig;
@@ -174,8 +177,9 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
       if (!raw.trim()) {
         return reply.code(400).send({ success: false, data: null, error: 'empty body' });
       }
+      let parsedNext;
       try {
-        parseRawConfig(raw);
+        parsedNext = parseRawConfig(raw);
       } catch (err) {
         const msg = err instanceof ConfigError ? err.message : (err as Error).message;
         return reply.code(400).send({ success: false, data: null, error: msg });
@@ -189,9 +193,14 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
           error: `cannot write config: ${(err as Error).message}`,
         });
       }
+      const hotReload = canHotReload(deps.config, parsedNext);
+      if (hotReload) {
+        deps.config.schedule = parsedNext.schedule;
+        await deps.scheduleRunner.update(parsedNext.schedule);
+      }
       return {
         success: true,
-        data: { restartRequired: true, path: deps.configPath },
+        data: { restartRequired: !hotReload, path: deps.configPath },
         error: null,
       };
     },

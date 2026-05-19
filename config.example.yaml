@@ -53,5 +53,16 @@ logging:
   chatLog: true                 # persist observed chat messages to SQLite
   chatLogRetentionDays: 14      # prune chat rows older than this each hour
 
+# Schedule (Zeitschaltuhr): when enabled, the bot only runs inside the time window
+# below. Outside the window the orchestrator is stopped. Manual Start/Stop on the
+# dashboard wins until the next schedule edge (Start- or End-time). If start > end,
+# the window crosses midnight (e.g. 22:00–06:00). Hot-reloadable — no restart
+# required for changes to this block.
+schedule:
+  enabled: false
+  start: "08:00"              # HH:MM in 24h format
+  end: "22:00"
+  timezone: "UTC"             # IANA name, e.g. "Europe/Berlin", "America/New_York"
+
 database:
   path: /data/mosbot.db

@@ -36,7 +36,32 @@ interface EditableConfig {
     chatLog: boolean;
     chatLogRetentionDays: number;
   };
+  schedule: {
+    enabled: boolean;
+    start: string;
+    end: string;
+    timezone: string;
+  };
 }
+
+const TIME_24H = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const detectBrowserTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+};
+
+const isValidTimezone = (tz: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const;
 
@@ -61,7 +86,17 @@ export const SettingsPage = (): JSX.Element => {
   const parsed = useMemo<EditableConfig | null>(() => {
     if (!raw) return null;
     try {
-      return loadYaml(raw) as EditableConfig;
+      const rawParsed = loadYaml(raw) as Partial<EditableConfig>;
+      if (!rawParsed || typeof rawParsed !== 'object') return null;
+      return {
+        ...(rawParsed as EditableConfig),
+        schedule: rawParsed.schedule ?? {
+          enabled: false,
+          start: '08:00',
+          end: '22:00',
+          timezone: detectBrowserTimezone(),
+        },
+      };
     } catch {
       return null;
     }
@@ -347,6 +382,18 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
 
       <Card className="md:col-span-2">
         <CardHeader>
+          <CardTitle>Schedule (Zeitschaltuhr)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ScheduleEditor
+            value={config.schedule}
+            onChange={(v) => update('schedule', v)}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2">
+        <CardHeader>
           <CardTitle>Channels</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -460,6 +507,106 @@ interface TagListProps {
   help?: string;
   onChange: (v: string[]) => void;
 }
+
+interface ScheduleEditorProps {
+  value: EditableConfig['schedule'];
+  onChange: (v: EditableConfig['schedule']) => void;
+}
+
+const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element => {
+  const overnight = value.start !== value.end && value.start > value.end;
+  const sameTime = value.start === value.end;
+  const startInvalid = !TIME_24H.test(value.start);
+  const endInvalid = !TIME_24H.test(value.end);
+  const tzInvalid = value.timezone.length === 0 || !isValidTimezone(value.timezone);
+
+  return (
+    <div className="space-y-3">
+      <LabeledCheckbox
+        label="Zeitschaltuhr aktiviert"
+        help="Wenn aktiv: Bot läuft nur im Fenster Start–Ende. Außerhalb wird er automatisch gestoppt. Manueller Start/Stop überschreibt bis zum nächsten Übergang."
+        value={value.enabled}
+        onChange={(v) => onChange({ ...value, enabled: v })}
+      />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Start (24h)
+            <FieldHelp text="Uhrzeit, ab der der Bot läuft. Format HH:MM, 24-Stunden-Format. Interpretiert in der unten gewählten Zeitzone." />
+          </label>
+          <Input
+            type="time"
+            step={60}
+            value={value.start}
+            onChange={(e) => onChange({ ...value, start: e.target.value })}
+            disabled={!value.enabled}
+          />
+          {startInvalid && (
+            <p className="text-xs text-destructive">Ungültige Zeit. Format: HH:MM</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Ende (24h)
+            <FieldHelp text="Uhrzeit, ab der der Bot gestoppt wird. Ist Ende kleiner als Start, läuft der Bot über Mitternacht hinweg (z.B. 22:00–06:00)." />
+          </label>
+          <Input
+            type="time"
+            step={60}
+            value={value.end}
+            onChange={(e) => onChange({ ...value, end: e.target.value })}
+            disabled={!value.enabled}
+          />
+          {endInvalid && (
+            <p className="text-xs text-destructive">Ungültige Zeit. Format: HH:MM</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Zeitzone
+            <FieldHelp text="IANA-Zeitzone wie 'Europe/Berlin' oder 'America/New_York'. Bestimmt, wie 'Start' und 'Ende' interpretiert werden. DST/Sommerzeit wird automatisch berücksichtigt." />
+          </label>
+          <div className="flex gap-2">
+            <Input
+              value={value.timezone}
+              onChange={(e) => onChange({ ...value, timezone: e.target.value.trim() })}
+              placeholder="Europe/Berlin"
+              disabled={!value.enabled}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange({ ...value, timezone: detectBrowserTimezone() })}
+              disabled={!value.enabled}
+              title="Browser-Zeitzone automatisch erkennen"
+            >
+              Auto
+            </Button>
+          </div>
+          {tzInvalid && value.enabled && (
+            <p className="text-xs text-destructive">
+              Ungültige IANA-Zeitzone (z.B. “Europe/Berlin”).
+            </p>
+          )}
+        </div>
+      </div>
+      {sameTime && value.enabled && (
+        <p className="text-xs text-destructive">
+          Start und Ende dürfen nicht identisch sein.
+        </p>
+      )}
+      {overnight && value.enabled && !sameTime && !startInvalid && !endInvalid && (
+        <p className="text-xs text-muted-foreground">
+          Übernacht-Fenster: Bot läuft von {value.start} über Mitternacht bis {value.end}.
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Änderungen an diesem Block wirken sofort, ohne Container-Restart.
+      </p>
+    </div>
+  );
+};
 
 const TagList = ({ label, values, help, onChange }: TagListProps): JSX.Element => {
   const [input, setInput] = useState('');

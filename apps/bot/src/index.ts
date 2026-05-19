@@ -9,6 +9,7 @@ import { StatsRepo } from './stats/repo.js';
 import { MarblesTimerRepo } from './lobby/marbles-timer-repo.js';
 import { Metrics } from './metrics.js';
 import { Orchestrator } from './orchestrator.js';
+import { ScheduleRunner } from './schedule/schedule-runner.js';
 import { createApiServer } from './api/server.js';
 import { getOrCreateSessionSecret } from './api/session.js';
 
@@ -48,10 +49,17 @@ const main = async (): Promise<void> => {
     timerRepo,
   });
 
+  const scheduleRunner = new ScheduleRunner({
+    schedule: config.schedule,
+    orchestrator,
+    logger,
+  });
+
   const sessionSecret = getOrCreateSessionSecret(sqlite);
 
   const app = await createApiServer({
     orchestrator,
+    scheduleRunner,
     auth,
     stats,
     bus,
@@ -69,10 +77,19 @@ const main = async (): Promise<void> => {
   logger.info({ host: config.server.host, port: config.server.port }, 'API listening');
 
   if (auth.all().length > 0) {
-    await orchestrator.start();
+    if (config.schedule.enabled) {
+      logger.info(
+        { schedule: config.schedule },
+        'schedule enabled — startup state is determined by ScheduleRunner',
+      );
+    } else {
+      await orchestrator.start();
+    }
   } else {
     logger.warn('no authorized accounts — waiting for dashboard login');
   }
+
+  await scheduleRunner.start();
 
   const HOUR_MS = 60 * 60 * 1000;
   const DAY_MS = 24 * HOUR_MS;
@@ -114,6 +131,7 @@ const main = async (): Promise<void> => {
     try {
       clearInterval(pruneTimer);
       clearInterval(vacuumTimer);
+      scheduleRunner.dispose();
       await orchestrator.stop();
       await app.close();
       sqlite.close();
