@@ -26,25 +26,30 @@ export interface UseAutoSaveResult {
  * Expects `initialRaw` to be available at mount; the parent should defer
  * rendering until the initial value is loaded.
  *
- * `save` is captured in a ref, so it does not need to be memoised.
+ * `save` and `validate` are captured in refs, so they don't need to be
+ * memoised by the caller.
  */
 export const useAutoSave = (
   initialRaw: string,
   save: (raw: string) => Promise<SaveResult>,
-  debounceMs = 500,
+  options?: { debounceMs?: number; validate?: (raw: string) => string | null },
 ): UseAutoSaveResult => {
+  const debounceMs = options?.debounceMs ?? 500;
   const [raw, setRawState] = useState(initialRaw);
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const controllerRef = useRef<AutoSaveController | null>(null);
   const saveRef = useRef(save);
   saveRef.current = save;
+  const validateRef = useRef(options?.validate);
+  validateRef.current = options?.validate;
 
   useEffect(() => {
     const c = new AutoSaveController({
       initialRaw,
       debounceMs,
       save: (next) => saveRef.current(next),
+      validate: (next) => validateRef.current?.(next) ?? null,
       onSaved: (result, undoSnapshot) => {
         setError(null);
         setUndoState((prev) => {

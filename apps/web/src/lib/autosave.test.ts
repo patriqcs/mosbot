@@ -138,4 +138,45 @@ describe('AutoSaveController', () => {
     await vi.runAllTimersAsync();
     expect(save).not.toHaveBeenCalled();
   });
+
+  it('skips save and calls onError when validator returns an error', async () => {
+    const save = vi.fn(async () => okResult());
+    const onError = vi.fn();
+    const onSaved = vi.fn();
+    const validate = vi.fn((raw: string) => (raw === 'bad' ? 'cannot parse' : null));
+    const c = new AutoSaveController({
+      initialRaw: 'v0',
+      debounceMs: 500,
+      save,
+      onSaved,
+      onError,
+      validate,
+    });
+    c.setRaw('bad');
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.runAllTimersAsync();
+    expect(save).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect((onError.mock.calls[0]?.[0] as Error).message).toContain('cannot parse');
+  });
+
+  it('saves when validator returns null (valid)', async () => {
+    const save = vi.fn(async () => okResult());
+    const onSaved = vi.fn();
+    const validate = vi.fn(() => null);
+    const c = new AutoSaveController({
+      initialRaw: 'v0',
+      debounceMs: 500,
+      save,
+      onSaved,
+      onError: vi.fn(),
+      validate,
+    });
+    c.setRaw('ok');
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.runAllTimersAsync();
+    expect(save).toHaveBeenCalledOnce();
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
 });

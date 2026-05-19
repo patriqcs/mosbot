@@ -10,6 +10,11 @@ export interface AutoSaveControllerOptions {
   save: (raw: string) => Promise<SaveResult>;
   onSaved: (result: SaveResult, undoSnapshot: string, savedRaw: string) => void;
   onError: (err: Error) => void;
+  /**
+   * Pre-save guard. Return `null` to allow the save, or an error message string
+   * to block it (onError is invoked with that message; save is not called).
+   */
+  validate?: (raw: string) => string | null;
 }
 
 export class AutoSaveController {
@@ -53,6 +58,11 @@ export class AutoSaveController {
     if (this.pendingRaw === this.lastSavedRaw) return;
     const preSnapshot = this.lastSavedRaw;
     const toSave = this.pendingRaw;
+    const validationError = this.opts.validate?.(toSave) ?? null;
+    if (validationError !== null) {
+      this.opts.onError(new Error(validationError));
+      return;
+    }
     try {
       const result = await this.opts.save(toSave);
       this.lastSavedRaw = toSave;

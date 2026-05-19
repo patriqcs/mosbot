@@ -37,6 +37,11 @@ export const api = {
     const res = await fetch('/api/status', { credentials: 'include' });
     return unwrap(res);
   },
+  health: async (): Promise<{ ok: boolean; uptime: number }> => {
+    const res = await fetch('/api/health', { credentials: 'include' });
+    const json = (await res.json()) as { ok: boolean; uptime: number };
+    return { ok: json.ok, uptime: json.uptime };
+  },
   streams: async (): Promise<StreamListItem[]> => {
     const res = await fetch('/api/streams', { credentials: 'include' });
     return unwrap(res);

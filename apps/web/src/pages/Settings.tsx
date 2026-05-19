@@ -1,13 +1,50 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
+import { AppConfig } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldHelp, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 import { useAutoSave } from '@/lib/useAutoSave';
+import { useRestartDetection } from '@/lib/useRestartDetection';
 import { UndoToast, ErrorToast } from '@/components/UndoToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+
+const ENV_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
+
+const interpolateEnv = (input: unknown): unknown => {
+  if (typeof input === 'string') {
+    // Client-side has no env access; substitute placeholders with a non-empty
+    // stand-in so .min(1) checks for secret fields pass during local validation.
+    return input.replace(ENV_PATTERN, '_env_');
+  }
+  if (Array.isArray(input)) return input.map(interpolateEnv);
+  if (input && typeof input === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+      out[k] = interpolateEnv(v);
+    }
+    return out;
+  }
+  return input;
+};
+
+const validateRawConfig = (raw: string): string | null => {
+  let parsed: unknown;
+  try {
+    parsed = loadYaml(raw);
+  } catch (err) {
+    return `Invalid YAML: ${(err as Error).message}`;
+  }
+  const interpolated = interpolateEnv(parsed);
+  const result = AppConfig.safeParse(interpolated);
+  if (result.success) return null;
+  const first = result.error.issues[0];
+  if (!first) return 'Config validation failed.';
+  const path = first.path.join('.') || '(root)';
+  return `${path}: ${first.message}`;
+};
 
 type Mode = 'form' | 'yaml';
 
@@ -115,6 +152,7 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
   const { raw, setRaw, undoState, undo, dismissUndo, error, clearError } = useAutoSave(
     initialRaw,
     api.saveConfig,
+    { validate: validateRawConfig },
   );
   const [restartPending, setRestartPending] = useState<string[]>([]);
 
@@ -124,6 +162,9 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
     if (sections.length === 0) return;
     setRestartPending((prev) => Array.from(new Set([...prev, ...sections])));
   }, [undoState]);
+
+  const clearRestartPending = useCallback(() => setRestartPending([]), []);
+  useRestartDetection(clearRestartPending);
 
   const parsed = useMemo<EditableConfig | null>(() => {
     if (!raw) return null;
