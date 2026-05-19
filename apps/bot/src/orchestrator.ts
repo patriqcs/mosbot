@@ -100,6 +100,44 @@ export class Orchestrator {
     return this.running;
   }
 
+  updateLobbyConfig(): void {
+    const { lobby } = this.deps.config;
+    for (const b of this.bundles.values()) {
+      b.detector.update({
+        windowMs: lobby.windowSeconds * 1000,
+        minPlayers: lobby.minPlayers,
+        cooldownMs: lobby.cooldownSeconds * 1000,
+      });
+    }
+    this.logger.info({ lobby }, 'lobby config hot-reloaded');
+  }
+
+  updateRatelimitConfig(): void {
+    const capacity = this.deps.config.ratelimit.verifiedBot
+      ? 45
+      : this.deps.config.ratelimit.userChatBudgetPer30s;
+    for (const b of this.bundles.values()) {
+      b.bucket.update({ capacity });
+    }
+    this.logger.info({ ratelimit: this.deps.config.ratelimit }, 'ratelimit config hot-reloaded');
+  }
+
+  updateDiscoveryConfig(): void {
+    // Static fields (maxStreams, minViewers, language, sortBy) are read live from
+    // deps.config on each cycle — no action needed. The only thing we own here is
+    // the setTimeout schedule, which uses intervalMinutes.
+    if (!this.running) return;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.scheduleNextDiscovery();
+    this.logger.info(
+      { intervalMinutes: this.deps.config.discovery.intervalMinutes },
+      'discovery interval hot-reloaded',
+    );
+  }
+
   async status(): Promise<BotStatus> {
     const accounts = await Promise.all(
       this.deps.config.accounts.map(async (a) => {

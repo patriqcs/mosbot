@@ -11,7 +11,7 @@ import type { Metrics } from '../metrics.js';
 import type { LoggerConfig } from '../logger.js';
 import { setLogLevel } from '../logger.js';
 import { ConfigError, parseRawConfig } from '../config/loader.js';
-import { canHotReload } from './config-diff.js';
+import { diffSections, type SectionDiff } from './config-diff.js';
 
 export interface ApiRoutesDeps {
   orchestrator: Orchestrator;
@@ -193,14 +193,16 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
           error: `cannot write config: ${(err as Error).message}`,
         });
       }
-      const hotReload = canHotReload(deps.config, parsedNext);
-      if (hotReload) {
-        deps.config.schedule = parsedNext.schedule;
-        await deps.scheduleRunner.update(parsedNext.schedule);
-      }
+      const diff = diffSections(deps.config, parsedNext);
+      await applyHotReloadChanges(deps, parsedNext, diff);
       return {
         success: true,
-        data: { restartRequired: !hotReload, path: deps.configPath },
+        data: {
+          restartRequired: diff.restartRequired.length > 0,
+          restartRequiredSections: diff.restartRequired,
+          appliedSections: diff.hotReloadable,
+          path: deps.configPath,
+        },
         error: null,
       };
     },
@@ -210,4 +212,51 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
     reply.header('Content-Type', deps.metrics.contentType());
     return deps.metrics.render();
   });
+};
+
+/**
+ * Applies the hot-reloadable parts of a new config in-place. Sections in
+ * `diff.restartRequired` are intentionally NOT mutated in memory — the YAML
+ * file already contains the new values, which take effect on the next boot.
+ * Object.assign on sub-objects preserves the existing references that
+ * components (Discovery, ChatManager, etc.) captured at startup.
+ */
+const applyHotReloadChanges = async (
+  deps: ApiRoutesDeps,
+  next: AppConfig,
+  diff: SectionDiff,
+): Promise<void> => {
+  for (const section of diff.hotReloadable) {
+    switch (section) {
+      case 'discovery':
+        Object.assign(deps.config.discovery, next.discovery);
+        deps.orchestrator.updateDiscoveryConfig();
+        break;
+      case 'lobby':
+        Object.assign(deps.config.lobby, next.lobby);
+        deps.orchestrator.updateLobbyConfig();
+        break;
+      case 'ratelimit':
+        Object.assign(deps.config.ratelimit, next.ratelimit);
+        deps.orchestrator.updateRatelimitConfig();
+        break;
+      case 'channels':
+        Object.assign(deps.config.channels, next.channels);
+        break;
+      case 'schedule':
+        Object.assign(deps.config.schedule, next.schedule);
+        await deps.scheduleRunner.update(deps.config.schedule);
+        break;
+      case 'server.auth':
+        Object.assign(deps.config.server.auth, next.server.auth);
+        break;
+      case 'logging':
+        // rotateDays is intentionally NOT applied live (restart-required).
+        deps.config.logging.level = next.logging.level;
+        deps.config.logging.chatLog = next.logging.chatLog;
+        deps.config.logging.chatLogRetentionDays = next.logging.chatLogRetentionDays;
+        deps.updateLogLevel(next.logging.level);
+        break;
+    }
+  }
 };

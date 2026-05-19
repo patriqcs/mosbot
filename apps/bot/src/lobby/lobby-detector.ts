@@ -12,9 +12,9 @@ interface ChannelState {
 
 export class LobbyDetector {
   private readonly channels = new Map<string, ChannelState>();
-  private readonly windowMs: number;
-  private readonly minPlayers: number;
-  private readonly cooldownMs: number;
+  private windowMs: number;
+  private minPlayers: number;
+  private cooldownMs: number;
   private readonly now: () => number;
 
   constructor(opts: LobbyDetectorOptions) {
@@ -24,6 +24,20 @@ export class LobbyDetector {
     this.minPlayers = opts.minPlayers;
     this.cooldownMs = opts.cooldownMs;
     this.now = opts.now ?? Date.now;
+  }
+
+  update(opts: Partial<Pick<LobbyDetectorOptions, 'windowMs' | 'minPlayers' | 'cooldownMs'>>): void {
+    if (opts.windowMs !== undefined) {
+      if (opts.windowMs <= 0) throw new Error('windowMs must be > 0');
+      this.windowMs = opts.windowMs;
+    }
+    if (opts.minPlayers !== undefined) {
+      if (opts.minPlayers < 1) throw new Error('minPlayers must be >= 1');
+      this.minPlayers = opts.minPlayers;
+    }
+    if (opts.cooldownMs !== undefined) {
+      this.cooldownMs = opts.cooldownMs;
+    }
   }
 
   observe(channel: string, user: string): { triggered: boolean; distinctUsers: number } {

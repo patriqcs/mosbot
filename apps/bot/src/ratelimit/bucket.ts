@@ -6,8 +6,8 @@ export interface TokenBucketOptions {
 
 export class TokenBucket {
   private tokens: number;
-  private readonly capacity: number;
-  private readonly ratePerMs: number;
+  private capacity: number;
+  private ratePerMs: number;
   private lastRefill: number;
   private readonly now: () => number;
 
@@ -19,6 +19,18 @@ export class TokenBucket {
     this.ratePerMs = opts.capacity / opts.refillWindowMs;
     this.now = opts.now ?? Date.now;
     this.lastRefill = this.now();
+  }
+
+  update(opts: Partial<Pick<TokenBucketOptions, 'capacity' | 'refillWindowMs'>>): void {
+    if (opts.capacity !== undefined) {
+      if (opts.capacity <= 0) throw new Error('capacity must be > 0');
+      this.capacity = opts.capacity;
+      if (this.tokens > this.capacity) this.tokens = this.capacity;
+    }
+    if (opts.refillWindowMs !== undefined) {
+      if (opts.refillWindowMs <= 0) throw new Error('refillWindowMs must be > 0');
+      this.ratePerMs = this.capacity / opts.refillWindowMs;
+    }
   }
 
   private refill(): void {

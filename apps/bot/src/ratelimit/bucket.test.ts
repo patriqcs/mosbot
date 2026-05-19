@@ -35,4 +35,38 @@ describe('TokenBucket', () => {
     expect(() => new TokenBucket({ capacity: 0, refillWindowMs: 1 })).toThrow();
     expect(() => new TokenBucket({ capacity: 1, refillWindowMs: 0 })).toThrow();
   });
+
+  it('update() raises capacity without losing current tokens', () => {
+    const clock = makeClock();
+    const b = new TokenBucket({ capacity: 5, refillWindowMs: 1000, now: clock.now });
+    b.tryConsume(2); // now 3 tokens
+    b.update({ capacity: 10 });
+    expect(b.available()).toBe(3);
+    // bucket can now consume up to 3 immediately; refills toward 10
+    expect(b.tryConsume(3)).toBe(true);
+    expect(b.tryConsume()).toBe(false);
+  });
+
+  it('update() shrinks capacity and clamps current tokens', () => {
+    const clock = makeClock();
+    const b = new TokenBucket({ capacity: 10, refillWindowMs: 1000, now: clock.now });
+    // 10 tokens
+    b.update({ capacity: 4 });
+    expect(b.available()).toBe(4);
+  });
+
+  it('update() changes refill rate', () => {
+    const clock = makeClock();
+    const b = new TokenBucket({ capacity: 10, refillWindowMs: 1000, now: clock.now });
+    for (let i = 0; i < 10; i++) b.tryConsume();
+    b.update({ refillWindowMs: 500 }); // twice as fast
+    clock.advance(500);
+    expect(b.available()).toBeGreaterThanOrEqual(10 - 1e-6);
+  });
+
+  it('update() rejects invalid values', () => {
+    const b = new TokenBucket({ capacity: 5, refillWindowMs: 1000 });
+    expect(() => b.update({ capacity: 0 })).toThrow();
+    expect(() => b.update({ refillWindowMs: 0 })).toThrow();
+  });
 });
