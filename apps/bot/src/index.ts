@@ -30,6 +30,9 @@ const main = async (): Promise<void> => {
   const auth = new AuthManager({ store: tokenStore, bus, logger });
   const stats = new StatsRepo(sqlite);
   bus.on('auth', (ev) => stats.recordAuth(ev.account, ev.phase, ev.message));
+  bus.on('chat', (ev) => {
+    if (config.logging.chatLog) stats.recordChat(ev.channel, ev.user, ev.text);
+  });
   const timerRepo = new MarblesTimerRepo(sqlite);
   timerRepo.pruneBefore(Date.now() - 12 * 60 * 1000);
   const metrics = new Metrics();

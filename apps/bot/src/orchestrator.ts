@@ -307,9 +307,6 @@ export class Orchestrator {
       if (!/^!play(\s|$)/.test(trimmed)) return;
       if (user === runtime.userLogin.toLowerCase()) return;
       const { triggered, distinctUsers } = detector.observe(channel, user);
-      if (this.deps.config.logging.chatLog) {
-        this.deps.stats.recordChat(channel, user, text);
-      }
       if (!triggered) return;
       this.deps.stats.recordLobby(channel, distinctUsers);
       this.deps.metrics.lobbiesDetectedTotal.inc({ channel });
