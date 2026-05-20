@@ -795,30 +795,6 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dashboard login</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <LabeledText
-            label="Username"
-            help="Username for the dashboard login form. Read live on each request — change applies immediately."
-            value={config.server.auth.username}
-            onChange={(v) =>
-              update('server', { auth: { ...config.server.auth, username: v } })
-            }
-          />
-          <LabeledText
-            label="Password hash (argon2)"
-            help="Argon2 password hash. If you reference an env var like ${DASHBOARD_PASSWORD_HASH}, do not edit here — change it on the container. Otherwise paste a fresh argon2 hash."
-            value={config.server.auth.passwordHash}
-            onChange={(v) =>
-              update('server', { auth: { ...config.server.auth, passwordHash: v } })
-            }
-          />
-        </CardContent>
-      </Card>
-
       <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle>Channels</CardTitle>
