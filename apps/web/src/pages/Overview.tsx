@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowDown,
   Hash,
   Play,
   Radio,
@@ -21,13 +22,87 @@ import { MetricTile } from '@/components/ui/metric-tile';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusDot } from '@/components/ui/status-dot';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ChatBubble } from '@/components/ChatBubble';
+import { useBttvStore } from '@/lib/bttv';
+import { useSevenTvStore } from '@/lib/seventv';
+import type { NameLookupEntry } from '@/lib/emotes';
 import { formatDuration, formatNumber, formatTimestamp } from '@/lib/utils';
-import type { MarblesTimerStatus } from '@mosbot/shared';
+import type { BotEvent, MarblesTimerStatus } from '@mosbot/shared';
 
 export const OverviewPage = (): JSX.Element => {
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 5_000 });
+  const streamsQuery = useQuery({
+    queryKey: ['streams'],
+    queryFn: api.streams,
+    refetchInterval: 30_000,
+  });
   const events = useLiveStore((s) => s.events);
+  const avatars = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of streamsQuery.data ?? []) {
+      if (s.profileImageUrl) m.set(s.userLogin, s.profileImageUrl);
+    }
+    return m;
+  }, [streamsQuery.data]);
+  const userIds = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of streamsQuery.data ?? []) {
+      if (s.userId) m.set(s.userLogin, s.userId);
+    }
+    return m;
+  }, [streamsQuery.data]);
+
+  const bttvGlobal = useBttvStore((s) => s.global);
+  const bttvChannels = useBttvStore((s) => s.channels);
+  const ensureBttvGlobal = useBttvStore((s) => s.ensureGlobal);
+  const ensureBttvChannel = useBttvStore((s) => s.ensureChannel);
+  const sevenTvGlobal = useSevenTvStore((s) => s.global);
+  const sevenTvChannels = useSevenTvStore((s) => s.channels);
+  const ensureSevenTvGlobal = useSevenTvStore((s) => s.ensureGlobal);
+  const ensureSevenTvChannel = useSevenTvStore((s) => s.ensureChannel);
+
+  useEffect(() => {
+    void ensureBttvGlobal();
+    void ensureSevenTvGlobal();
+  }, [ensureBttvGlobal, ensureSevenTvGlobal]);
+
+  const activeChatChannels = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of events.slice(0, LIVE_EVENTS_LIMIT)) {
+      if (e.event.type === 'chat') set.add(e.event.channel);
+    }
+    return set;
+  }, [events]);
+
+  useEffect(() => {
+    for (const ch of activeChatChannels) {
+      const uid = userIds.get(ch);
+      if (!uid) continue;
+      void ensureBttvChannel(ch, uid);
+      void ensureSevenTvChannel(ch, uid);
+    }
+  }, [activeChatChannels, userIds, ensureBttvChannel, ensureSevenTvChannel]);
+
+  const bttvByChannel = useMemo(() => {
+    const m = new Map<string, Record<string, NameLookupEntry>>();
+    const globalByName = bttvGlobal?.byName ?? {};
+    for (const ch of activeChatChannels) {
+      const channelByName = bttvChannels[ch.toLowerCase()]?.byName ?? {};
+      m.set(ch, { ...globalByName, ...channelByName });
+    }
+    return m;
+  }, [bttvGlobal, bttvChannels, activeChatChannels]);
+
+  const sevenTvByChannel = useMemo(() => {
+    const m = new Map<string, Record<string, NameLookupEntry>>();
+    const globalByName = sevenTvGlobal?.byName ?? {};
+    for (const ch of activeChatChannels) {
+      const channelByName = sevenTvChannels[ch.toLowerCase()]?.byName ?? {};
+      m.set(ch, { ...globalByName, ...channelByName });
+    }
+    return m;
+  }, [sevenTvGlobal, sevenTvChannels, activeChatChannels]);
 
   useEffect(() => {
     ensureLiveSubscription();
@@ -120,49 +195,132 @@ export const OverviewPage = (): JSX.Element => {
 
       <MarblesTimersCard timers={status.data?.marblesTimers ?? []} />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Radio className="h-4 w-4 text-primary" />
-            Live events
-          </CardTitle>
-          <span className="text-xs text-muted-foreground">
-            most recent first · {Math.min(events.length, 100)} shown
-          </span>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {events.length === 0 ? (
-            <EmptyState
-              icon={Radio}
-              title="Waiting for events…"
-              description="As soon as the bot observes lobbies, joins channels, or sends a !play, you'll see it here."
-            />
-          ) : (
-            <div className="max-h-96 space-y-0.5 overflow-y-auto font-mono text-xs">
-              {events.slice(0, 100).map((e) => (
-                <div
-                  key={e.id}
-                  className="flex items-center gap-2 whitespace-nowrap rounded px-2 py-1 transition-colors hover:bg-muted/30"
-                >
-                  <span className="shrink-0 text-muted-foreground">
-                    {formatTimestamp(e.event.at)}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 border-border/70 px-1.5 py-0 font-mono text-[10px] uppercase tracking-wide"
-                  >
-                    {e.event.type}
-                  </Badge>
-                  <span className="truncate">{summarize(e.event)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <LiveEventsCard
+        events={events}
+        avatars={avatars}
+        bttvByChannel={bttvByChannel}
+        sevenTvByChannel={sevenTvByChannel}
+      />
     </div>
   );
 };
+
+const LIVE_EVENTS_LIMIT = 300;
+const SCROLL_THRESHOLD = 24;
+
+interface LiveEventsCardProps {
+  events: ReturnType<typeof useLiveStore.getState>['events'];
+  avatars: Map<string, string>;
+  bttvByChannel: Map<string, Record<string, NameLookupEntry>>;
+  sevenTvByChannel: Map<string, Record<string, NameLookupEntry>>;
+}
+
+const LiveEventsCard = ({
+  events,
+  avatars,
+  bttvByChannel,
+  sevenTvByChannel,
+}: LiveEventsCardProps): JSX.Element => {
+  const visible = useMemo(
+    () => events.slice(0, LIVE_EVENTS_LIMIT).slice().reverse(),
+    [events],
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const lastLengthRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const prev = lastLengthRef.current;
+    lastLengthRef.current = visible.length;
+    if (visible.length > prev && atBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [visible.length, atBottom]);
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>): void => {
+    const el = e.currentTarget;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setAtBottom(distFromBottom <= SCROLL_THRESHOLD);
+  };
+
+  const jumpToBottom = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    setAtBottom(true);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Radio className="h-4 w-4 text-primary" />
+          Live events
+        </CardTitle>
+        <span className="text-xs text-muted-foreground">
+          {atBottom ? 'live' : 'paused — scroll to bottom to resume'} ·{' '}
+          {Math.min(events.length, LIVE_EVENTS_LIMIT)} shown
+        </span>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {visible.length === 0 ? (
+          <EmptyState
+            icon={Radio}
+            title="Waiting for events…"
+            description="As soon as the bot observes lobbies, joins channels, or sends a !play, you'll see it here."
+          />
+        ) : (
+          <div className="relative">
+            <div
+              ref={scrollRef}
+              onScroll={onScroll}
+              className="max-h-[600px] space-y-1 overflow-y-auto pr-1"
+            >
+              {visible.map((e) =>
+                e.event.type === 'chat' ? (
+                  <ChatBubble
+                    key={e.id}
+                    event={e.event}
+                    profileImageUrl={avatars.get(e.event.channel)}
+                    bttvLookup={bttvByChannel.get(e.event.channel)}
+                    sevenTvLookup={sevenTvByChannel.get(e.event.channel)}
+                  />
+                ) : (
+                  <MonoLine key={e.id} event={e.event} />
+                ),
+              )}
+            </div>
+            {!atBottom && (
+              <button
+                type="button"
+                onClick={jumpToBottom}
+                className="absolute bottom-2 right-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-colors hover:bg-primary/90"
+              >
+                <ArrowDown className="h-3 w-3" />
+                Jump to live
+              </button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const MonoLine = ({ event }: { event: BotEvent }): JSX.Element => (
+  <div className="flex items-center gap-2 whitespace-nowrap rounded px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/30">
+    <span className="shrink-0 text-muted-foreground">{formatTimestamp(event.at)}</span>
+    <Badge
+      variant="outline"
+      className="shrink-0 border-border/70 px-1.5 py-0 font-mono text-[10px] uppercase tracking-wide"
+    >
+      {event.type}
+    </Badge>
+    <span className="truncate">{summarize(event)}</span>
+  </div>
+);
 
 const MAX_TIMERS = 3;
 
