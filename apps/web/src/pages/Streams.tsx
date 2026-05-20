@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, ChevronsUpDown, Star } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink, Star, Tv } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StreamListItem } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { StatusDot } from '@/components/ui/status-dot';
 
 type SortField = 'streamer' | 'viewers' | 'lang' | 'joined' | 'plays';
 type SortDir = 'asc' | 'desc';
@@ -66,80 +69,160 @@ export const StreamsPage = (): JSX.Element => {
     return list;
   }, [q.data, field, dir]);
 
+  const totalCount = q.data?.length ?? 0;
+  const joinedCount = q.data?.filter((s) => s.joined).length ?? 0;
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Live Streams</h1>
+      <PageHeader
+        title="Live Streams"
+        description="Marbles-on-Stream channels discovered via Twitch Helix. The bot joins channels marked Joined."
+        actions={
+          <span className="inline-flex items-center gap-3 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs">
+            <span className="font-mono tabular-nums">
+              {joinedCount}
+              <span className="text-muted-foreground"> / {totalCount}</span>
+            </span>
+            <span className="text-muted-foreground">joined</span>
+          </span>
+        }
+      />
+
       <Card>
-        <CardHeader>
-          <CardTitle>Discovered channels</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Tv className="h-4 w-4 text-primary" />
+            Discovered channels
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <table className="w-full text-sm table-fixed">
-            <colgroup>
-              <col className="w-[45%]" />
-              <col className="w-[15%]" />
-              <col className="w-[10%]" />
-              <col className="w-[20%]" />
-              <col className="w-[10%]" />
-            </colgroup>
-            <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <ThSort label="Streamer" f="streamer" field={field} dir={dir} onClick={toggle} align="left" />
-                <ThSort label="Viewers" f="viewers" field={field} dir={dir} onClick={toggle} align="right" />
-                <ThSort label="Lang" f="lang" field={field} dir={dir} onClick={toggle} align="center" />
-                <ThSort label="Joined" f="joined" field={field} dir={dir} onClick={toggle} align="center" />
-                <ThSort label="!play" f="plays" field={field} dir={dir} onClick={toggle} align="right" />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((s) => (
-                <tr
-                  key={s.userLogin}
-                  className={`border-b last:border-0 ${
-                    s.preferred ? 'bg-amber-500/10' : ''
-                  }`}
-                >
-                  <td className="pl-4 pr-2 py-2 font-mono text-left truncate">
-                    <div className="inline-flex items-center gap-2">
-                      {s.preferred && (
-                        <Star
-                          className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400"
-                          aria-label="preferred"
-                        />
-                      )}
-                      <a
-                        href={`https://twitch.tv/${s.userLogin}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-primary hover:underline"
-                      >
-                        {s.userLogin}
-                      </a>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">{s.viewerCount.toLocaleString()}</td>
-                  <td className="px-4 py-2 text-center">{s.language}</td>
-                  <td className="px-4 py-2 text-center">
-                    <div className="inline-flex items-center gap-2">
-                      <Badge variant={s.joined ? 'success' : 'outline'}>
-                        {s.joined ? 'yes' : 'no'}
-                      </Badge>
-                      {s.preferred && (
-                        <Badge className="border-transparent bg-amber-500 text-white">
-                          preferred
-                        </Badge>
-                      )}
-                      {s.blacklisted && <Badge variant="destructive">blacklisted</Badge>}
-                      {s.whitelisted && <Badge variant="secondary">whitelisted</Badge>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">{s.playsSent}</td>
+          {sorted.length === 0 ? (
+            <div className="px-6 py-10">
+              <EmptyState
+                icon={Tv}
+                title="No streams discovered yet"
+                description="Once the next discovery cycle finds live Marbles streams, they'll appear here."
+                className="border-none bg-transparent"
+              />
+            </div>
+          ) : (
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[42%]" />
+                <col className="w-[14%]" />
+                <col className="w-[10%]" />
+                <col className="w-[24%]" />
+                <col className="w-[10%]" />
+              </colgroup>
+              <thead className="border-b border-border/60 bg-muted/20 text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <ThSort
+                    label="Streamer"
+                    f="streamer"
+                    field={field}
+                    dir={dir}
+                    onClick={toggle}
+                    align="left"
+                  />
+                  <ThSort
+                    label="Viewers"
+                    f="viewers"
+                    field={field}
+                    dir={dir}
+                    onClick={toggle}
+                    align="right"
+                  />
+                  <ThSort
+                    label="Lang"
+                    f="lang"
+                    field={field}
+                    dir={dir}
+                    onClick={toggle}
+                    align="center"
+                  />
+                  <ThSort
+                    label="Status"
+                    f="joined"
+                    field={field}
+                    dir={dir}
+                    onClick={toggle}
+                    align="center"
+                  />
+                  <ThSort
+                    label="!play"
+                    f="plays"
+                    field={field}
+                    dir={dir}
+                    onClick={toggle}
+                    align="right"
+                  />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {(!q.data || q.data.length === 0) && (
-            <div className="p-6 text-center text-muted-foreground">No streams discovered yet.</div>
+              </thead>
+              <tbody>
+                {sorted.map((s) => (
+                  <tr
+                    key={s.userLogin}
+                    className={`group border-b border-border/40 transition-colors last:border-0 hover:bg-muted/20 ${
+                      s.preferred ? 'bg-warning/5' : ''
+                    }`}
+                  >
+                    <td className="truncate py-2.5 pl-4 pr-2 text-left font-mono">
+                      <div className="inline-flex items-center gap-2">
+                        {s.preferred && (
+                          <Star
+                            className="h-3.5 w-3.5 shrink-0 fill-warning text-warning"
+                            aria-label="preferred"
+                          />
+                        )}
+                        <a
+                          href={`https://twitch.tv/${s.userLogin}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-primary"
+                        >
+                          {s.userLogin}
+                          <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-60" />
+                        </a>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                      {s.viewerCount.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-center font-mono text-xs uppercase text-muted-foreground">
+                      {s.language || '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+                        {s.joined ? (
+                          <Badge variant="success" className="gap-1">
+                            <StatusDot variant="success" pulse className="h-1.5 w-1.5" />
+                            joined
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            not joined
+                          </Badge>
+                        )}
+                        {s.preferred && (
+                          <Badge className="border-transparent bg-warning/90 text-warning-foreground">
+                            preferred
+                          </Badge>
+                        )}
+                        {s.blacklisted && (
+                          <Badge variant="destructive">blacklisted</Badge>
+                        )}
+                        {s.whitelisted && (
+                          <Badge variant="secondary">whitelisted</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                      {s.playsSent}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardContent>
       </Card>
@@ -159,18 +242,26 @@ interface ThSortProps {
 const ALIGN_CLASSES: Record<NonNullable<ThSortProps['align']>, string> = {
   left: 'text-left pl-4 pr-2',
   center: 'text-center px-4',
-  right: 'text-right px-4',
+  right: 'text-right px-4 justify-end',
 };
 
-const ThSort = ({ label, f, field, dir, onClick, align = 'left' }: ThSortProps): JSX.Element => {
+const ThSort = ({
+  label,
+  f,
+  field,
+  dir,
+  onClick,
+  align = 'left',
+}: ThSortProps): JSX.Element => {
   const active = field === f;
   const Icon = !active ? ChevronsUpDown : dir === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <th className={`py-2 ${ALIGN_CLASSES[align]}`}>
+    <th className={`py-2.5 font-medium ${ALIGN_CLASSES[align]}`}>
       <button
         type="button"
         onClick={() => onClick(f)}
-        className={`inline-flex items-center gap-1 ${
+        aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className={`inline-flex items-center gap-1 transition-colors ${
           active ? 'text-foreground' : 'hover:text-foreground'
         }`}
       >

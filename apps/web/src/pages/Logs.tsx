@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { ListOrdered, Search } from 'lucide-react';
 import { eventStream } from '@/lib/ws';
 import { ensureLiveSubscription, useLiveStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { BotEvent } from '@mosbot/shared';
 import { formatTimestamp } from '@/lib/utils';
 
@@ -15,11 +18,11 @@ const LEVEL_RANK: Record<Level, number> = { trace: 0, debug: 1, info: 2, warn: 3
 const levelColor = (l: Level): string => {
   switch (l) {
     case 'error':
-      return 'text-red-500';
+      return 'text-destructive';
     case 'warn':
-      return 'text-yellow-500';
+      return 'text-warning';
     case 'info':
-      return 'text-blue-400';
+      return 'text-info';
     case 'debug':
       return 'text-muted-foreground';
     case 'trace':
@@ -73,48 +76,79 @@ export const LogsPage = (): JSX.Element => {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Logs</h1>
-      <div className="flex gap-2 items-center">
-        <Input
-          placeholder="filter…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex gap-1">
+      <PageHeader
+        title="Logs"
+        description="Live event tail from the bot. Increasing the level changes both the dashboard filter and the runtime log level."
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="filter events…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="inline-flex rounded-md border border-border bg-card p-0.5">
           {LEVELS.map((l) => (
             <Button
               key={l}
-              variant={level === l ? 'default' : 'outline'}
+              variant={level === l ? 'secondary' : 'ghost'}
               size="sm"
-              onClick={() => changeLevel(l)}
+              onClick={() => void changeLevel(l)}
+              className="h-8 px-3 font-mono text-xs uppercase tracking-wide"
             >
               {l}
             </Button>
           ))}
         </div>
       </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Live tail</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ListOrdered className="h-4 w-4 text-primary" />
+            Live tail
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? 'event' : 'events'}
+          </span>
         </CardHeader>
-        <CardContent>
-          <div className="max-h-[70vh] overflow-y-auto font-mono text-xs space-y-0.5">
-            {filtered.map((e) => {
-              const lvl = levelForEvent(e.event);
-              return (
-                <div key={e.id} className="whitespace-pre-wrap break-words">
-                  <span className="text-muted-foreground">{formatTimestamp(e.event.at)}</span>{' '}
-                  <span className={`font-semibold uppercase ${levelColor(lvl)}`}>{lvl}</span>{' '}
-                  <span className="font-semibold">[{e.event.type}]</span>{' '}
-                  {JSON.stringify(e.event)}
-                </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="text-muted-foreground">no matching events</div>
-            )}
-          </div>
+        <CardContent className="pt-0">
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={ListOrdered}
+              title="No matching events"
+              description={
+                filter
+                  ? `No events match "${filter}" at level ${level}.`
+                  : `Waiting for events at level ${level} or higher…`
+              }
+            />
+          ) : (
+            <div className="max-h-[70vh] space-y-0.5 overflow-y-auto rounded-md bg-background/60 p-3 font-mono text-xs ring-1 ring-border/40">
+              {filtered.map((e) => {
+                const lvl = levelForEvent(e.event);
+                return (
+                  <div
+                    key={e.id}
+                    className="whitespace-pre-wrap break-words rounded px-2 py-1 transition-colors hover:bg-muted/20"
+                  >
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatTimestamp(e.event.at)}
+                    </span>{' '}
+                    <span className={`font-semibold uppercase tracking-wide ${levelColor(lvl)}`}>
+                      {lvl}
+                    </span>{' '}
+                    <span className="font-semibold">[{e.event.type}]</span>{' '}
+                    <span className="text-muted-foreground">{JSON.stringify(e.event)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,8 @@ import { useAutoSave } from '@/lib/useAutoSave';
 import { useRestartDetection } from '@/lib/useRestartDetection';
 import { UndoToast, ErrorToast } from '@/components/UndoToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageHeader } from '@/components/ui/page-header';
+import { AlertTriangle } from 'lucide-react';
 
 const ENV_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
 
@@ -194,48 +196,61 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
   return (
     <TooltipProvider delayDuration={200}>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <div className="flex gap-2">
-            <Button
-              variant={mode === 'form' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('form')}
-            >
-              Form
-            </Button>
-            <Button
-              variant={mode === 'yaml' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('yaml')}
-            >
-              YAML
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Settings"
+          description={
+            <>
+              Editing{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">
+                {path}
+              </code>
+              . Changes save automatically and apply live where possible.
+            </>
+          }
+          actions={
+            <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+              <Button
+                variant={mode === 'form' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setMode('form')}
+                className="h-8 px-3 text-xs"
+              >
+                Form
+              </Button>
+              <Button
+                variant={mode === 'yaml' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setMode('yaml')}
+                className="h-8 px-3 text-xs"
+              >
+                YAML
+              </Button>
+            </div>
+          }
+        />
 
         <p className="text-xs text-muted-foreground">
-          Editing <code>{path}</code>. Changes save automatically and apply live where
-          possible. Secrets (<code>{'${TWITCH_CLIENT_ID}'}</code>,{' '}
+          Secrets (<code>{'${TWITCH_CLIENT_ID}'}</code>,{' '}
           <code>{'${DASHBOARD_PASSWORD_HASH}'}</code>) are env-var references — do not
-          edit.
+          edit them through the form.
         </p>
 
         {restartPending.length > 0 && (
-          <div className="flex items-start justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            <div>
-              <p className="font-medium text-amber-700 dark:text-amber-300">
-                Container restart required
-              </p>
-              <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">
-                Pending sections: {restartPending.join(', ')}. The new values are saved
-                in the YAML on disk and will take effect on the next container restart.
+          <div className="fade-rise flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+            <div className="flex-1">
+              <p className="font-semibold text-warning">Container restart required</p>
+              <p className="mt-0.5 text-xs text-warning/80">
+                Pending sections: <span className="font-mono">{restartPending.join(', ')}</span>.
+                The new values are saved to YAML on disk and take effect on the next
+                container restart. This banner will clear automatically when a restart
+                is detected.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setRestartPending([])}
-              className="text-amber-700/70 hover:text-amber-700 dark:text-amber-300/70 dark:hover:text-amber-300"
+              className="shrink-0 self-start text-warning/70 transition-colors hover:text-warning"
               aria-label="dismiss"
             >
               ×
