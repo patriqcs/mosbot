@@ -21,12 +21,23 @@ interface HelixStreamRaw {
   started_at: string;
 }
 
+interface HelixUserRaw {
+  id: string;
+  login: string;
+  display_name: string;
+  profile_image_url: string;
+}
+
 export interface DiscoveryDeps {
   clientId: string;
   getAccessToken: () => Promise<string>;
   config: DiscoveryConfig;
   logger: Logger;
+  profileImageTtlMs?: number;
+  now?: () => number;
 }
+
+const DEFAULT_PROFILE_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const toStreamInfo = (s: HelixStreamRaw): StreamInfo => ({
   userId: s.user_id,
@@ -43,9 +54,14 @@ const toStreamInfo = (s: HelixStreamRaw): StreamInfo => ({
 export class Discovery {
   private gameId: string | null = null;
   private readonly logger: Logger;
+  private readonly profileImageCache = new Map<string, { url: string; expiresAt: number }>();
+  private readonly profileImageTtlMs: number;
+  private readonly now: () => number;
 
   constructor(private readonly deps: DiscoveryDeps) {
     this.logger = deps.logger.child({ module: 'discovery' });
+    this.profileImageTtlMs = deps.profileImageTtlMs ?? DEFAULT_PROFILE_IMAGE_TTL_MS;
+    this.now = deps.now ?? Date.now;
   }
 
   private async helix<T>(path: string): Promise<T> {
@@ -137,5 +153,45 @@ export class Discovery {
   private done(collected: StreamInfo[]): StreamInfo[] {
     this.logger.debug({ count: collected.length }, 'discovery fetched streams');
     return collected;
+  }
+
+  /**
+   * Fills `profileImageUrl` on each stream by calling Helix /users for any
+   * userIds not currently in the 24h cache. Returns a new array with enriched
+   * copies; never throws — best-effort.
+   */
+  async enrichProfileImages(streams: StreamInfo[]): Promise<StreamInfo[]> {
+    if (streams.length === 0) return streams;
+    const now = this.now();
+    const needIds = new Set<string>();
+    for (const s of streams) {
+      const cached = this.profileImageCache.get(s.userId);
+      if (!cached || cached.expiresAt <= now) needIds.add(s.userId);
+    }
+    if (needIds.size > 0) {
+      const ids = [...needIds];
+      for (let i = 0; i < ids.length; i += 100) {
+        const batch = ids.slice(i, i + 100);
+        const params = new URLSearchParams();
+        for (const id of batch) params.append('id', id);
+        try {
+          const json = await this.helix<{ data: HelixUserRaw[] }>(
+            `/users?${params.toString()}`,
+          );
+          const expiresAt = now + this.profileImageTtlMs;
+          for (const u of json.data) {
+            if (u.profile_image_url) {
+              this.profileImageCache.set(u.id, { url: u.profile_image_url, expiresAt });
+            }
+          }
+        } catch (err) {
+          this.logger.warn({ err, count: batch.length }, 'profile image fetch failed');
+        }
+      }
+    }
+    return streams.map((s) => {
+      const cached = this.profileImageCache.get(s.userId);
+      return cached ? { ...s, profileImageUrl: cached.url } : s;
+    });
   }
 }

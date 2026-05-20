@@ -42,7 +42,16 @@ export class Orchestrator {
   private running = false;
   private startedAt: number | null = null;
   private timer: NodeJS.Timeout | null = null;
-  private latestStreams: Map<string, { userName: string; viewerCount: number; language: string }> = new Map();
+  private latestStreams: Map<
+    string,
+    {
+      userId: string;
+      userName: string;
+      viewerCount: number;
+      language: string;
+      profileImageUrl?: string;
+    }
+  > = new Map();
 
   constructor(private readonly deps: OrchestratorDeps) {
     this.logger = deps.logger.child({ module: 'orchestrator' });
@@ -205,7 +214,14 @@ export class Orchestrator {
     return true;
   }
 
-  latestDiscovered(): Array<{ login: string; userName: string; viewerCount: number; language: string }> {
+  latestDiscovered(): Array<{
+    login: string;
+    userId: string;
+    userName: string;
+    viewerCount: number;
+    language: string;
+    profileImageUrl?: string;
+  }> {
     return [...this.latestStreams.entries()].map(([login, v]) => ({ login, ...v }));
   }
 
@@ -368,7 +384,10 @@ export class Orchestrator {
           });
       }
     }
-    const streams = [...mainStreams, ...preferStreams];
+    const streams = await primary.discovery.enrichProfileImages([
+      ...mainStreams,
+      ...preferStreams,
+    ]);
 
     const elapsed = (Date.now() - start) / 1000;
     this.deps.metrics.discoveryDuration.observe(elapsed);
@@ -376,7 +395,20 @@ export class Orchestrator {
     this.latestStreams = new Map(
       streams.map((s) => [
         s.userLogin,
-        { userName: s.userName, viewerCount: s.viewerCount, language: s.language },
+        s.profileImageUrl
+          ? {
+              userId: s.userId,
+              userName: s.userName,
+              viewerCount: s.viewerCount,
+              language: s.language,
+              profileImageUrl: s.profileImageUrl,
+            }
+          : {
+              userId: s.userId,
+              userName: s.userName,
+              viewerCount: s.viewerCount,
+              language: s.language,
+            },
       ]),
     );
     for (const s of streams) this.deps.stats.recordStreamSeen(s);

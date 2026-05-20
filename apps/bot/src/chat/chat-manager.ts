@@ -1,6 +1,7 @@
-import { ChatClient } from '@twurple/chat';
+import { ChatClient, type ChatMessage } from '@twurple/chat';
 import type { Logger } from 'pino';
 import type { AuthProvider } from '@twurple/auth';
+import type { ChatBadge } from '@mosbot/shared';
 import type { EventBus } from '../events/bus.js';
 
 export interface ChatManagerDeps {
@@ -32,17 +33,45 @@ export class ChatManager {
       requestMembershipEvents: false,
       isAlwaysMod: false,
     });
-    this.client.onMessage((channel, user, text) => {
-      const ch = channel.replace(/^#/, '').toLowerCase();
-      this.bus.emit({
-        type: 'chat',
-        at: new Date().toISOString(),
-        channel: ch,
-        user: user.toLowerCase(),
-        text,
-      });
-      this.onMessageHandler?.(ch, user.toLowerCase(), text);
+    this.client.onMessage((channel, user, text, msg) => {
+      this.handleMessage(channel, user, text, msg, false);
     });
+    this.client.onAction((channel, user, text, msg) => {
+      this.handleMessage(channel, user, text, msg, true);
+    });
+  }
+
+  private handleMessage(
+    channel: string,
+    user: string,
+    text: string,
+    msg: ChatMessage,
+    isAction: boolean,
+  ): void {
+    const ch = channel.replace(/^#/, '').toLowerCase();
+    const userLogin = user.toLowerCase();
+    const badges: ChatBadge[] = [];
+    for (const [set, version] of msg.userInfo.badges) {
+      badges.push({ set, version });
+    }
+    const emoteOffsets: Record<string, string[]> = {};
+    for (const [id, ranges] of msg.emoteOffsets) {
+      emoteOffsets[id] = ranges;
+    }
+    this.bus.emit({
+      type: 'chat',
+      at: new Date().toISOString(),
+      channel: ch,
+      user: userLogin,
+      displayName: msg.userInfo.displayName || user,
+      text,
+      color: msg.userInfo.color,
+      badges,
+      emoteOffsets,
+      isAction,
+      isFirstMessage: msg.isFirst,
+    });
+    this.onMessageHandler?.(ch, userLogin, text);
   }
 
   onMessage(handler: (channel: string, user: string, text: string) => void): void {

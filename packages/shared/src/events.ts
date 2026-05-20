@@ -10,8 +10,15 @@ export const StreamInfo = z.object({
   language: z.string(),
   thumbnailUrl: z.string().url(),
   startedAt: z.string(),
+  profileImageUrl: z.string().url().optional(),
 });
 export type StreamInfo = z.infer<typeof StreamInfo>;
+
+export const ChatBadge = z.object({
+  set: z.string(),
+  version: z.string(),
+});
+export type ChatBadge = z.infer<typeof ChatBadge>;
 
 export const DiscoveryEvent = z.object({
   type: z.literal('discovery'),
@@ -40,7 +47,13 @@ export const ChatEvent = z.object({
   at: z.string(),
   channel: z.string(),
   user: z.string(),
+  displayName: z.string(),
   text: z.string(),
+  color: z.string().optional(),
+  badges: z.array(ChatBadge),
+  emoteOffsets: z.record(z.string(), z.array(z.string())),
+  isAction: z.boolean(),
+  isFirstMessage: z.boolean(),
 });
 
 export const PlaySentEvent = z.object({
