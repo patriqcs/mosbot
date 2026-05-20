@@ -73,7 +73,12 @@ export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): vo
       if (!parsed.success) {
         return reply.code(400).send({ success: false, data: null, error: 'invalid range' });
       }
-      return { success: true, data: deps.stats.aggregate(parsed.data), error: null };
+      const stats = deps.stats.aggregate(parsed.data);
+      return {
+        success: true,
+        data: { ...stats, chatLogEnabled: deps.config.logging.chatLog },
+        error: null,
+      };
     },
   );
 

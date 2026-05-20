@@ -69,6 +69,7 @@ export const StatsResponse = z.object({
       plays: z.number().int().nonnegative(),
     }),
   ),
+  chatLogEnabled: z.boolean(),
 });
 export type StatsResponse = z.infer<typeof StatsResponse>;
 

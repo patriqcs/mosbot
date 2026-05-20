@@ -52,6 +52,7 @@ export const StatsPage = (): JSX.Element => {
   const totals = q.data?.totals;
   const buckets = q.data?.buckets ?? [];
   const topChannels = q.data?.topChannels ?? [];
+  const chatLogEnabled = q.data?.chatLogEnabled ?? false;
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,7 +76,11 @@ export const StatsPage = (): JSX.Element => {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          chatLogEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+        }`}
+      >
         <MetricTile
           label="Plays"
           value={formatNumber(totals?.plays ?? 0)}
@@ -90,13 +95,15 @@ export const StatsPage = (): JSX.Element => {
           accent="info"
           hint="Distinct lobby windows"
         />
-        <MetricTile
-          label="Chat messages"
-          value={formatNumber(totals?.chatMessages ?? 0)}
-          icon={MessagesSquare}
-          accent="muted"
-          hint="Across joined channels"
-        />
+        {chatLogEnabled && (
+          <MetricTile
+            label="Chat messages"
+            value={formatNumber(totals?.chatMessages ?? 0)}
+            icon={MessagesSquare}
+            accent="muted"
+            hint="Across joined channels"
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

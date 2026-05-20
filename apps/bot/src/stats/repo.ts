@@ -159,6 +159,7 @@ export class StatsRepo {
       totals: { plays: plays.c, lobbies: lobbies.c, chatMessages: chats.c },
       buckets,
       topChannels: top,
+      chatLogEnabled: false,
     };
   }
 }
