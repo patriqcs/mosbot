@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, KeyRound, LogOut, User } from 'lucide-react';
+import { AlertTriangle, ExternalLink, KeyRound, LogOut, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,27 @@ export const AccountsPage = (): JSX.Element => {
         title="Accounts"
         description="Twitch bot accounts. Use Device Code Flow to authorize an account — Twitch never sees a password."
       />
+
+      <div
+        role="alert"
+        className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive"
+      >
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+        <div className="space-y-1.5 text-sm">
+          <p className="font-semibold uppercase tracking-wide">
+            Warning — risk of in-game bans
+          </p>
+          <p className="leading-relaxed text-destructive/90">
+            Automated play can lead to bans or other penalties on the target game. Always
+            use the <span className="font-semibold">Schedule</span> to limit activity and
+            never overdo it — running accounts around the clock dramatically increases the
+            risk of detection.
+          </p>
+          <p className="leading-relaxed text-destructive/90">
+            You are solely responsible for every account you connect. Use at your own risk.
+          </p>
+        </div>
+      </div>
 
       {accounts.length === 0 ? (
         <EmptyState
