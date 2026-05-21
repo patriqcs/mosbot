@@ -7,6 +7,7 @@ export type HotReloadableSection =
   | 'channels'
   | 'schedule'
   | 'logging'
+  | 'safety'
   | 'server.auth';
 
 export type RestartRequiredSection =
@@ -40,6 +41,7 @@ export const diffSections = (oldCfg: AppConfig, newCfg: AppConfig): SectionDiff 
   if (!eq(oldCfg.ratelimit, newCfg.ratelimit)) hotReloadable.push('ratelimit');
   if (!eq(oldCfg.channels, newCfg.channels)) hotReloadable.push('channels');
   if (!eq(oldCfg.schedule, newCfg.schedule)) hotReloadable.push('schedule');
+  if (!eq(oldCfg.safety, newCfg.safety)) hotReloadable.push('safety');
   if (!eq(oldCfg.server.auth, newCfg.server.auth)) hotReloadable.push('server.auth');
 
   const oldLoggingHot = { ...oldCfg.logging, rotateDays: 0 };

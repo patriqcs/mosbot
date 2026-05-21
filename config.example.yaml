@@ -72,5 +72,15 @@ schedule:
     sat: { start: "12:00", end: "16:00" }
     sun: { start: "12:00", end: "16:00" }
 
+# Anti-detection knobs. Lower probability + more jitter = harder to fingerprint
+# as a bot, at the cost of fewer plays per session.
+safety:
+  preSendJitterMs:
+    min: 1500           # random delay between lobby detection and !play (lower bound)
+    max: 6000           # upper bound; both in milliseconds
+  playProbability: 0.8  # 0..1; 0.8 = skip ~20% of detected lobbies on purpose
+  scheduleJitterMinutes: 5  # ±N minutes of random offset on each day's start/end
+  maxPlaysPerDay: 40    # hard cap per account; 0 = unlimited
+
 database:
   path: /data/mosbot.db

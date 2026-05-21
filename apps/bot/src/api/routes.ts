@@ -256,6 +256,10 @@ const applyHotReloadChanges = async (
       case 'server.auth':
         Object.assign(deps.config.server.auth, next.server.auth);
         break;
+      case 'safety':
+        Object.assign(deps.config.safety, next.safety);
+        deps.orchestrator.updateSafetyConfig();
+        break;
       case 'logging': {
         // rotateDays is intentionally NOT applied live (restart-required).
         const chatLogDisabled =

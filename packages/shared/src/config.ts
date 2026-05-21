@@ -23,6 +23,31 @@ export const RateLimitConfig = z.object({
   verifiedBot: z.boolean().default(false),
 });
 
+export const SafetyConfig = z
+  .object({
+    preSendJitterMs: z
+      .object({
+        min: z.number().int().min(0).max(60_000).default(1_500),
+        max: z.number().int().min(0).max(60_000).default(6_000),
+      })
+      .refine((j) => j.min <= j.max, {
+        message: 'min must be <= max',
+        path: ['max'],
+      })
+      .default({ min: 1_500, max: 6_000 }),
+    playProbability: z.number().min(0).max(1).default(0.8),
+    scheduleJitterMinutes: z.number().int().min(0).max(60).default(5),
+    // 0 disables the cap.
+    maxPlaysPerDay: z.number().int().min(0).max(1000).default(40),
+  })
+  .default({
+    preSendJitterMs: { min: 1_500, max: 6_000 },
+    playProbability: 0.8,
+    scheduleJitterMinutes: 5,
+    maxPlaysPerDay: 40,
+  });
+export type SafetyConfig = z.infer<typeof SafetyConfig>;
+
 export const ChannelsConfig = z.object({
   whitelist: z.array(z.string()).default([]),
   blacklist: z.array(z.string()).default([]),
@@ -147,6 +172,7 @@ export const AppConfig = z.object({
   logging: LoggingConfig,
   database: DatabaseConfig,
   schedule: ScheduleConfig.default({}),
+  safety: SafetyConfig,
 });
 
 export type AppConfig = z.infer<typeof AppConfig>;

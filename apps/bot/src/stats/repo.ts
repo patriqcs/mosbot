@@ -20,6 +20,27 @@ const rangeBucketMs: Record<StatsRange, number> = {
   '30d': 24 * 60 * 60 * 1000,
 };
 
+/**
+ * Epoch ms of the most recent midnight in `timezone`, given `now`. Used to
+ * scope per-day quotas to local-time days even when the bot runs in UTC.
+ */
+const startOfTodayMs = (timezone: string, now: number = Date.now()): number => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(now));
+  const pick = (type: string): number => {
+    const v = parts.find((q) => q.type === type)?.value ?? '0';
+    return Number(v === '24' ? '0' : v);
+  };
+  const elapsedMs =
+    (pick('hour') * 3600 + pick('minute') * 60 + pick('second')) * 1000;
+  return now - elapsedMs;
+};
+
 export class StatsRepo {
   constructor(private readonly db: Database) {}
 
@@ -115,6 +136,18 @@ export class StatsRepo {
     const r = this.db
       .prepare('SELECT COUNT(*) AS c FROM plays_sent WHERE channel = ?')
       .get(channel.toLowerCase()) as { c: number };
+    return r.c;
+  }
+
+  /**
+   * Number of `!play` rows recorded for `account` since midnight today in
+   * `timezone`. Used by the daily play cap.
+   */
+  playsToday(account: string, timezone: string): number {
+    const since = startOfTodayMs(timezone);
+    const r = this.db
+      .prepare('SELECT COUNT(*) AS c FROM plays_sent WHERE account = ? AND at >= ?')
+      .get(account, since) as { c: number };
     return r.c;
   }
 

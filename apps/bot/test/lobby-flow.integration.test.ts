@@ -31,6 +31,12 @@ describe('full lobby flow: detect -> schedule -> send', () => {
       bus,
       logger: silentLogger,
       accountName: 'primary',
+      safety: {
+        preSendJitterMs: { min: 0, max: 0 },
+        playProbability: 1,
+        scheduleJitterMinutes: 0,
+        maxPlaysPerDay: 0,
+      },
     });
 
     const playSpy = vi.fn();
@@ -68,6 +74,12 @@ describe('full lobby flow: detect -> schedule -> send', () => {
       bus,
       logger: silentLogger,
       accountName: 'primary',
+      safety: {
+        preSendJitterMs: { min: 0, max: 0 },
+        playProbability: 1,
+        scheduleJitterMinutes: 0,
+        maxPlaysPerDay: 0,
+      },
     });
     detector.observe('alice', 'u1');
     const outcome = await scheduler.schedule('alice', 1);

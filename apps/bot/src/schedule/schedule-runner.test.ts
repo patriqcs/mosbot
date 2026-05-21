@@ -247,6 +247,41 @@ describe('isInWindow', () => {
   });
 });
 
+describe('jitterSchedule', () => {
+  it('returns the input unchanged when jitterMinutes is 0', async () => {
+    const { jitterSchedule } = await import('./schedule-runner.js');
+    const s = sched({ windows: { mon: { start: '12:00', end: '16:00' } } });
+    expect(jitterSchedule(s, REF_UTC, 0)).toEqual(s);
+  });
+
+  it('produces a deterministic offset for the same (date, weekday)', async () => {
+    const { jitterSchedule } = await import('./schedule-runner.js');
+    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
+    const a = jitterSchedule(s, REF_UTC, 10);
+    const b = jitterSchedule(s, REF_UTC + 5_000, 10); // 5s later, same day
+    expect(a.windows.tue).toEqual(b.windows.tue);
+  });
+
+  it('keeps the window length identical (uniform shift)', async () => {
+    const { jitterSchedule, parseHHMM } = await import('./schedule-runner.js');
+    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
+    const out = jitterSchedule(s, REF_UTC, 30);
+    const w = out.windows.tue!;
+    const lengthIn = 16 * 60 - 12 * 60; // 240 min
+    const lengthOut = parseHHMM(w.end) - parseHHMM(w.start);
+    expect(((lengthOut + 24 * 60) % (24 * 60))).toBe(lengthIn);
+  });
+
+  it('produces different offsets across days', async () => {
+    const { jitterSchedule } = await import('./schedule-runner.js');
+    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
+    const tueDay1 = jitterSchedule(s, REF_UTC, 30).windows.tue!;
+    const tueDay2 = jitterSchedule(s, REF_UTC + 7 * 24 * 3600 * 1000, 30).windows.tue!;
+    // Highly likely (deterministic) to differ:
+    expect(tueDay1).not.toEqual(tueDay2);
+  });
+});
+
 describe('ScheduleRunner', () => {
   let orch: ReturnType<typeof makeOrchestrator>;
 

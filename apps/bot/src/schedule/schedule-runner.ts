@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import type { ScheduleConfig } from '@mosbot/shared';
+import type { ScheduleConfig, SafetyConfig } from '@mosbot/shared';
 
 export interface OrchestratorLike {
   start(): Promise<void>;
@@ -12,13 +12,72 @@ export interface ScheduleRunnerDeps {
   logger: Logger;
   tickMs?: number;
   now?: () => number;
+  /**
+   * Optional safety reference; only `scheduleJitterMinutes` is consulted.
+   * Passed by reference so hot-reload mutations show up on the next tick.
+   */
+  safety?: SafetyConfig | undefined;
 }
 
 const DEFAULT_TICK_MS = 30_000;
 
-const parseHHMM = (hhmm: string): number => {
+export const parseHHMM = (hhmm: string): number => {
   const [h, m] = hhmm.split(':');
   return Number(h) * 60 + Number(m);
+};
+
+const formatHHMM = (mins: number): string => {
+  const wrapped = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const dateKeyInTz = (epochMs: number, timezone: string): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(epochMs));
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+// FNV-1a string hash → float in [0, 1). Deterministic across processes.
+const seededFloat = (seed: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h ^ seed.charCodeAt(i)) * 16777619;
+    h >>>= 0;
+  }
+  return (h % 1_000_000) / 1_000_000;
+};
+
+/**
+ * Apply a deterministic per-day jitter to each weekday window. Both start and
+ * end are shifted by the same per-day random offset in [-jitterMinutes,
+ * +jitterMinutes], so window length stays constant — only the wall-clock
+ * position drifts. The offset is stable for the entire local-day in `timezone`.
+ */
+export const jitterSchedule = (
+  schedule: ScheduleConfig,
+  epochMs: number,
+  jitterMinutes: number,
+): ScheduleConfig => {
+  if (jitterMinutes <= 0) return schedule;
+  const date = dateKeyInTz(epochMs, schedule.timezone);
+  const nextWindows: ScheduleConfig['windows'] = {};
+  for (const day of Object.keys(schedule.windows) as Weekday[]) {
+    const w = schedule.windows[day];
+    if (!w) continue;
+    const offset = Math.round((seededFloat(`${date}:${day}`) * 2 - 1) * jitterMinutes);
+    nextWindows[day] = {
+      start: formatHHMM(parseHHMM(w.start) + offset),
+      end: formatHHMM(parseHHMM(w.end) + offset),
+    };
+  }
+  return { ...schedule, windows: nextWindows };
 };
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -119,6 +178,7 @@ export class ScheduleRunner {
   private readonly orchestrator: OrchestratorLike;
   private readonly tickMs: number;
   private readonly now: () => number;
+  private readonly safety: SafetyConfig | undefined;
   private schedule: ScheduleConfig;
   private timer: NodeJS.Timeout | null = null;
   private lastInWindow: boolean | null = null;
@@ -130,6 +190,18 @@ export class ScheduleRunner {
     this.tickMs = deps.tickMs ?? DEFAULT_TICK_MS;
     this.now = deps.now ?? Date.now;
     this.schedule = deps.schedule;
+    this.safety = deps.safety;
+  }
+
+  /**
+   * Schedule used for the current evaluation tick: raw config, optionally
+   * shifted by `safety.scheduleJitterMinutes` so start/end edges don't fire
+   * at the same wall-clock minute every day.
+   */
+  private effectiveSchedule(): ScheduleConfig {
+    const jitter = this.safety?.scheduleJitterMinutes ?? 0;
+    if (jitter <= 0) return this.schedule;
+    return jitterSchedule(this.schedule, this.now(), jitter);
   }
 
   async start(): Promise<void> {
@@ -171,7 +243,7 @@ export class ScheduleRunner {
   async tick(): Promise<void> {
     if (!this.started) return;
     if (!this.schedule.enabled) return;
-    const inWindow = isInWindow(this.now(), this.schedule);
+    const inWindow = isInWindow(this.now(), this.effectiveSchedule());
     if (this.lastInWindow === null) {
       // No prior reference state — treat this tick as the hard reconcile.
       this.lastInWindow = inWindow;
@@ -188,7 +260,7 @@ export class ScheduleRunner {
       this.lastInWindow = null;
       return;
     }
-    const inWindow = isInWindow(this.now(), this.schedule);
+    const inWindow = isInWindow(this.now(), this.effectiveSchedule());
     this.lastInWindow = inWindow;
     await this.applyState(inWindow);
   }

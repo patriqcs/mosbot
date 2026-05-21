@@ -131,6 +131,14 @@ export class Orchestrator {
     this.logger.info({ ratelimit: this.deps.config.ratelimit }, 'ratelimit config hot-reloaded');
   }
 
+  updateSafetyConfig(): void {
+    // Safety settings (preSendJitterMs, playProbability, maxPlaysPerDay) are
+    // read live from deps.config.safety on each PlayScheduler.schedule() call.
+    // scheduleJitterMinutes is consulted by the ScheduleRunner on each tick.
+    // Nothing to push imperatively — just log the new state.
+    this.logger.info({ safety: this.deps.config.safety }, 'safety config hot-reloaded');
+  }
+
   updateDiscoveryConfig(): void {
     // Static fields (maxStreams, minViewers, language, sortBy) are read live from
     // deps.config on each cycle — no action needed. The only thing we own here is
@@ -291,6 +299,9 @@ export class Orchestrator {
       bus: this.deps.bus,
       logger: this.logger,
       accountName: runtime.name,
+      safety: this.deps.config.safety,
+      stats: this.deps.stats,
+      timezone: this.deps.config.schedule.timezone,
     });
     const discovery = new Discovery({
       clientId: runtime.clientId,

@@ -34,6 +34,12 @@ const baseConfig: AppConfig = {
       sun: { start: '08:00', end: '22:00' },
     },
   },
+  safety: {
+    preSendJitterMs: { min: 1_500, max: 6_000 },
+    playProbability: 0.8,
+    scheduleJitterMinutes: 5,
+    maxPlaysPerDay: 40,
+  },
 };
 
 const clone = (cfg: AppConfig): AppConfig => JSON.parse(JSON.stringify(cfg)) as AppConfig;

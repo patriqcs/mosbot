@@ -56,6 +56,7 @@ const main = async (): Promise<void> => {
     schedule: config.schedule,
     orchestrator,
     logger,
+    safety: config.safety,
   });
 
   const sessionSecret = getOrCreateSessionSecret(sqlite);

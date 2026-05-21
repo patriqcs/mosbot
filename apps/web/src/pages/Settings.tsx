@@ -89,6 +89,12 @@ interface EditableConfig {
     timezone: string;
     windows: Partial<Record<Weekday, { start: string; end: string }>>;
   };
+  safety: {
+    preSendJitterMs: { min: number; max: number };
+    playProbability: number;
+    scheduleJitterMinutes: number;
+    maxPlaysPerDay: number;
+  };
   accounts: AccountEntry[];
   server: {
     host: string;
@@ -178,6 +184,12 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
           windows: Object.fromEntries(
             WEEKDAYS.map((d) => [d, { start: '12:00', end: '16:00' }]),
           ),
+        },
+        safety: rawParsed.safety ?? {
+          preSendJitterMs: { min: 1500, max: 6000 },
+          playProbability: 0.8,
+          scheduleJitterMinutes: 5,
+          maxPlaysPerDay: 40,
         },
       };
     } catch {
@@ -692,6 +704,18 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
 
       <Card className="md:col-span-2">
         <CardHeader>
+          <CardTitle>Anti-detection</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <SafetyEditor
+            value={config.safety}
+            onChange={(v) => update('safety', v)}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2">
+        <CardHeader>
           <CardTitle>Channels</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -851,6 +875,138 @@ interface ScheduleEditorProps {
   value: EditableConfig['schedule'];
   onChange: (v: EditableConfig['schedule']) => void;
 }
+
+interface SafetyEditorProps {
+  value: EditableConfig['safety'];
+  onChange: (v: EditableConfig['safety']) => void;
+}
+
+const SafetyEditor = ({ value, onChange }: SafetyEditorProps): JSX.Element => {
+  const jitterInvalid = value.preSendJitterMs.min > value.preSendJitterMs.max;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Reduce bot fingerprintability. Lower probability and wider jitter make
+        the activity pattern more human-like, at the cost of fewer plays per
+        session. Changes apply live.
+      </p>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Pre-send jitter min (ms)
+            <FieldHelp text="Lower bound of the random delay between detecting a full lobby and sending !play. 0 disables the delay." />
+          </label>
+          <Input
+            type="number"
+            min={0}
+            max={60_000}
+            step={100}
+            value={value.preSendJitterMs.min}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                preSendJitterMs: {
+                  ...value.preSendJitterMs,
+                  min: Math.max(0, Number(e.target.value) || 0),
+                },
+              })
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Pre-send jitter max (ms)
+            <FieldHelp text="Upper bound of the random delay. Must be ≥ min. Practical range: 1500–6000 ms." />
+          </label>
+          <Input
+            type="number"
+            min={0}
+            max={60_000}
+            step={100}
+            value={value.preSendJitterMs.max}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                preSendJitterMs: {
+                  ...value.preSendJitterMs,
+                  max: Math.max(0, Number(e.target.value) || 0),
+                },
+              })
+            }
+          />
+          {jitterInvalid && (
+            <p className="text-xs text-destructive">max must be ≥ min</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Play probability ({Math.round(value.playProbability * 100)}%)
+            <FieldHelp text="Fraction of detected lobbies the bot actually joins. 1.0 = always; 0.8 = skip ~20% on purpose. Lower values look more human, fewer plays." />
+          </label>
+          <Input
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={value.playProbability}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                playProbability: Math.min(
+                  1,
+                  Math.max(0, Number(e.target.value) || 0),
+                ),
+              })
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-1.5 text-xs font-medium">
+            Schedule jitter (± minutes)
+            <FieldHelp text="Random ±N min offset applied to each day's start and end, deterministic per day. 0 disables. Practical range: 0–15." />
+          </label>
+          <Input
+            type="number"
+            min={0}
+            max={60}
+            step={1}
+            value={value.scheduleJitterMinutes}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                scheduleJitterMinutes: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+              })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-1.5 text-xs font-medium">
+          Max plays per day per account
+          <FieldHelp text="Hard upper bound on !play sends per account per local day (in the schedule timezone). 0 disables the cap. Protects against runaway configs." />
+        </label>
+        <Input
+          type="number"
+          min={0}
+          max={1000}
+          step={1}
+          value={value.maxPlaysPerDay}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              maxPlaysPerDay: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+};
 
 const WEEKDAY_LABEL: Record<Weekday, string> = {
   mon: 'Mon',

@@ -34,6 +34,24 @@ describe('StatsRepo', () => {
     expect(c.channelsJoined).toBe(1);
   });
 
+  it('playsToday counts plays for an account since today\'s local midnight', () => {
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
+    // Two recent plays today, one play "yesterday" (well past local midnight).
+    repo.recordPlay('primary', 'alice');
+    repo.recordPlay('primary', 'bob');
+    // Manually backdate one row to 36h ago so it falls into yesterday in any TZ.
+    db.prepare('UPDATE plays_sent SET at = ? WHERE channel = ?').run(
+      now - 36 * oneHour,
+      'bob',
+    );
+    repo.recordPlay('primary', 'carol');
+    // Different account — should not count.
+    repo.recordPlay('secondary', 'alice');
+    expect(repo.playsToday('primary', 'UTC')).toBe(2);
+    expect(repo.playsToday('secondary', 'UTC')).toBe(1);
+  });
+
   it('deleteAllChat removes every chat row and returns the count', () => {
     repo.recordChat('alice', 'u1', 'hi');
     repo.recordChat('alice', 'u2', '!play');
