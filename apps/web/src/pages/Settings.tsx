@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
 import { AppConfig } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -321,11 +322,14 @@ const RestartRequiredSections = ({
       </h2>
       <FieldHelp text="Changes in these sections need a container restart to take effect. Each section has its own Apply button with a confirmation dialog so you don't trigger a restart by accident." />
     </div>
+    <p className="text-xs text-muted-foreground">
+      Accounts (add / remove / enable) are managed on the{' '}
+      <Link to="/accounts" className="font-medium text-primary hover:underline">
+        Accounts
+      </Link>{' '}
+      page.
+    </p>
     <div className="grid gap-6 md:grid-cols-2">
-      <AccountsCard
-        value={config.accounts}
-        onApply={(next) => onApply({ ...config, accounts: next })}
-      />
       <ServerBindCard
         value={{ host: config.server.host, port: config.server.port }}
         onApply={(next) =>
@@ -345,103 +349,6 @@ const RestartRequiredSections = ({
     </div>
   </div>
 );
-
-interface AccountsCardProps {
-  value: AccountEntry[];
-  onApply: (next: AccountEntry[]) => void;
-}
-
-const AccountsCard = ({ value, onApply }: AccountsCardProps): JSX.Element => {
-  const [draft, setDraft] = useState<AccountEntry[]>(value);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  useEffect(() => setDraft(value), [value]);
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(value);
-  const updateRow = (i: number, patch: Partial<AccountEntry>): void => {
-    setDraft(draft.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
-  };
-  const addRow = (): void =>
-    setDraft([...draft, { name: '', enabled: false, clientId: '${TWITCH_CLIENT_ID}' }]);
-  const removeRow = (i: number): void => setDraft(draft.filter((_, idx) => idx !== i));
-
-  return (
-    <Card className="md:col-span-2">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Accounts</CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!dirty}
-          onClick={() => setConfirmOpen(true)}
-        >
-          Apply (restart)
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Twitch bot accounts. Adding, removing or toggling an account requires a
-          container restart. The Client ID typically references an env var, e.g.
-          <code> ${'${TWITCH_CLIENT_ID}'}</code>.
-        </p>
-        {draft.length === 0 && (
-          <p className="text-xs text-muted-foreground">No accounts configured.</p>
-        )}
-        {draft.map((account, i) => (
-          <div
-            key={i}
-            className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 md:grid-cols-[1fr_auto_2fr_auto]"
-          >
-            <Input
-              value={account.name}
-              onChange={(e) => updateRow(i, { name: e.target.value })}
-              placeholder="account name"
-            />
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={account.enabled}
-                onChange={(e) => updateRow(i, { enabled: e.target.checked })}
-                className="h-4 w-4"
-              />
-              enabled
-            </label>
-            <Input
-              value={account.clientId}
-              onChange={(e) => updateRow(i, { clientId: e.target.value })}
-              placeholder="${TWITCH_CLIENT_ID}"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => removeRow(i)}
-            >
-              Remove
-            </Button>
-          </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={addRow}>
-          Add account
-        </Button>
-      </CardContent>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Apply account changes?"
-        description={
-          <span>
-            Account add/remove/enable changes only take effect after a container restart.
-            The new values will be saved to the YAML on disk now; you must restart the
-            container yourself to load them.
-          </span>
-        }
-        confirmLabel="Save now"
-        onConfirm={() => onApply(draft)}
-      />
-    </Card>
-  );
-};
 
 interface ServerBindValue {
   host: string;
