@@ -314,7 +314,7 @@ export const AccountsPage = (): JSX.Element => {
                     Log out
                   </Button>
                   <Button
-                    variant="outline"
+                    variant={a.enabled ? 'success' : 'destructive'}
                     onClick={() => onToggleEnabled(a.name)}
                     disabled={saveAccounts.isPending}
                     size="sm"

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import pino from 'pino';
-import type { ScheduleConfig } from '@mosbot/shared';
-import { ScheduleRunner, isInWindow, minutesInTimezone } from './schedule-runner.js';
+import { ScheduleConfig } from '@mosbot/shared';
+import {
+  ScheduleRunner,
+  isInWindow,
+  minutesInTimezone,
+  weekdayIn,
+} from './schedule-runner.js';
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -16,12 +21,126 @@ const makeOrchestrator = (): {
 // Tuesday 2026-05-19 14:00:00 UTC
 const REF_UTC = Date.parse('2026-05-19T14:00:00Z');
 
-const sched = (over: Partial<ScheduleConfig>): ScheduleConfig => ({
-  enabled: true,
-  start: '08:00',
-  end: '22:00',
-  timezone: 'UTC',
-  ...over,
+const WEEKDAYS_LIST = [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+] as const;
+type WD = (typeof WEEKDAYS_LIST)[number];
+
+interface SchedOverride {
+  enabled?: boolean;
+  timezone?: string;
+  // Convenience: when start/end set, build a same-time window for all 7 days
+  // (matches the pre-windows-model test fixture).
+  start?: string;
+  end?: string;
+  windows?: Partial<Record<WD, { start: string; end: string }>>;
+}
+
+const sched = (over: SchedOverride = {}): ScheduleConfig => {
+  const start = over.start ?? '08:00';
+  const end = over.end ?? '22:00';
+  const defaultWindows = Object.fromEntries(
+    WEEKDAYS_LIST.map((d) => [d, { start, end }]),
+  ) as Record<WD, { start: string; end: string }>;
+  return {
+    enabled: over.enabled ?? true,
+    timezone: over.timezone ?? 'UTC',
+    windows: over.windows ?? defaultWindows,
+  };
+};
+
+describe('ScheduleConfig schema', () => {
+  it('accepts a new windows-shaped config', () => {
+    const parsed = ScheduleConfig.parse({
+      enabled: true,
+      timezone: 'UTC',
+      windows: {
+        mon: { start: '12:00', end: '16:00' },
+        wed: { start: '14:00', end: '18:00' },
+      },
+    });
+    expect(parsed.windows.mon).toEqual({ start: '12:00', end: '16:00' });
+    expect(parsed.windows.wed).toEqual({ start: '14:00', end: '18:00' });
+    expect(parsed.windows.tue).toBeUndefined();
+  });
+
+  it('rejects an empty windows map', () => {
+    const r = ScheduleConfig.safeParse({
+      enabled: true,
+      timezone: 'UTC',
+      windows: {},
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]?.message).toMatch(/at least one/i);
+    }
+  });
+
+  it('rejects a window with start === end', () => {
+    const r = ScheduleConfig.safeParse({
+      enabled: true,
+      timezone: 'UTC',
+      windows: { mon: { start: '12:00', end: '12:00' } },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('auto-migrates legacy start+end (no windows) to all 7 days', () => {
+    const parsed = ScheduleConfig.parse({
+      enabled: true,
+      timezone: 'UTC',
+      start: '08:00',
+      end: '22:00',
+    });
+    expect(Object.keys(parsed.windows).sort()).toEqual(
+      ['fri', 'mon', 'sat', 'sun', 'thu', 'tue', 'wed'],
+    );
+    expect(parsed.windows.mon).toEqual({ start: '08:00', end: '22:00' });
+    expect(parsed.windows.sun).toEqual({ start: '08:00', end: '22:00' });
+  });
+
+  it('default (no fields) yields enabled=true, all 7 days 12:00-16:00, UTC', () => {
+    const parsed = ScheduleConfig.parse({});
+    expect(parsed.enabled).toBe(true);
+    expect(parsed.timezone).toBe('UTC');
+    expect(parsed.windows.mon).toEqual({ start: '12:00', end: '16:00' });
+    expect(Object.keys(parsed.windows)).toHaveLength(7);
+  });
+});
+
+describe('weekdayIn', () => {
+  // REF_UTC = Tuesday 2026-05-19 14:00:00 UTC
+  it('returns "tue" for a Tuesday 14:00 UTC', () => {
+    expect(weekdayIn(REF_UTC, 'UTC')).toBe('tue');
+  });
+
+  it('returns "tue" for the same instant interpreted in Berlin (UTC+2 in May)', () => {
+    expect(weekdayIn(REF_UTC, 'Europe/Berlin')).toBe('tue');
+  });
+
+  it('returns "tue" in New York (UTC-4 in May, 10:00 local — same day)', () => {
+    expect(weekdayIn(REF_UTC, 'America/New_York')).toBe('tue');
+  });
+
+  it('returns the next day when timezone pushes the instant across midnight', () => {
+    // 22:00 UTC Tuesday = 00:00 Wednesday in Berlin (UTC+2)
+    const t = Date.parse('2026-05-19T22:00:00Z');
+    expect(weekdayIn(t, 'Europe/Berlin')).toBe('wed');
+    expect(weekdayIn(t, 'UTC')).toBe('tue');
+  });
+
+  it('returns the previous day when timezone pulls the instant back over midnight', () => {
+    // 02:00 UTC Tuesday = 22:00 Monday in New York (UTC-4)
+    const t = Date.parse('2026-05-19T02:00:00Z');
+    expect(weekdayIn(t, 'America/New_York')).toBe('mon');
+    expect(weekdayIn(t, 'UTC')).toBe('tue');
+  });
 });
 
 describe('minutesInTimezone', () => {
@@ -86,6 +205,45 @@ describe('isInWindow', () => {
   it('start is inclusive: at exactly 08:00, returns true', () => {
     const t = Date.parse('2026-05-19T08:00:00Z');
     expect(isInWindow(t, sched({ start: '08:00', end: '22:00' }))).toBe(true);
+  });
+
+  // Per-day windows model: explicit weekday gating.
+  it('per-day: bot is out on a weekday with no window', () => {
+    // REF_UTC is Tuesday 14:00; provide only Mon window.
+    const s = sched({ windows: { mon: { start: '08:00', end: '22:00' } } });
+    expect(isInWindow(REF_UTC, s)).toBe(false);
+  });
+
+  it('per-day: bot runs only on selected weekdays', () => {
+    // REF_UTC is Tuesday 14:00. Mon+Wed window, Tue absent.
+    const s = sched({
+      windows: {
+        mon: { start: '12:00', end: '18:00' },
+        wed: { start: '12:00', end: '18:00' },
+      },
+    });
+    expect(isInWindow(REF_UTC, s)).toBe(false);
+  });
+
+  it('per-day overnight: yesterday spillover keeps bot running past midnight', () => {
+    // Mon 22:00 - 06:00 only, Tue 02:00 UTC = still inside Mon's overnight shift.
+    const t = Date.parse('2026-05-19T02:00:00Z'); // Tue 02:00 UTC
+    const s = sched({ windows: { mon: { start: '22:00', end: '06:00' } } });
+    expect(isInWindow(t, s)).toBe(true);
+  });
+
+  it('per-day overnight: spillover stops at yesterday-window end', () => {
+    // Tue 06:00 UTC: Mon's overnight 22-06 has ended.
+    const t = Date.parse('2026-05-19T06:00:00Z');
+    const s = sched({ windows: { mon: { start: '22:00', end: '06:00' } } });
+    expect(isInWindow(t, s)).toBe(false);
+  });
+
+  it('per-day: non-overnight today window stops at midnight (no spillover)', () => {
+    // Mon 14-18 only. Tue 02:00 must NOT run.
+    const t = Date.parse('2026-05-19T02:00:00Z');
+    const s = sched({ windows: { mon: { start: '14:00', end: '18:00' } } });
+    expect(isInWindow(t, s)).toBe(false);
   });
 });
 

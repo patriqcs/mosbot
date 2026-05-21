@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 
 interface UndoToastProps {
@@ -13,9 +14,8 @@ export const UndoToast = ({
   onUndo,
   onDismiss,
 }: UndoToastProps): JSX.Element => {
-  const label =
-    count === 1 ? 'Saved.' : `Saved (${count} changes).`;
-  return (
+  const label = count === 1 ? 'Saved.' : `Saved (${count} changes).`;
+  return createPortal(
     <div
       role="status"
       className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-md border bg-background px-4 py-2 shadow-lg animate-in fade-in slide-in-from-bottom-2"
@@ -39,7 +39,8 @@ export const UndoToast = ({
       >
         ×
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -48,22 +49,24 @@ interface ErrorToastProps {
   onDismiss: () => void;
 }
 
-export const ErrorToast = ({ message, onDismiss }: ErrorToastProps): JSX.Element => (
-  <div
-    role="alert"
-    className="fixed bottom-4 right-4 z-50 flex max-w-md items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 shadow-lg animate-in fade-in slide-in-from-bottom-2"
-  >
-    <span className="text-sm text-destructive">
-      <span className="font-medium">Save failed: </span>
-      {message}
-    </span>
-    <button
-      type="button"
-      onClick={onDismiss}
-      className="text-destructive/70 hover:text-destructive"
-      aria-label="dismiss"
+export const ErrorToast = ({ message, onDismiss }: ErrorToastProps): JSX.Element =>
+  createPortal(
+    <div
+      role="alert"
+      className="fixed bottom-4 right-4 z-50 flex max-w-md items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 shadow-lg animate-in fade-in slide-in-from-bottom-2"
     >
-      ×
-    </button>
-  </div>
-);
+      <span className="text-sm text-destructive">
+        <span className="font-medium">Save failed: </span>
+        {message}
+      </span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="text-destructive/70 hover:text-destructive"
+        aria-label="dismiss"
+      >
+        ×
+      </button>
+    </div>,
+    document.body,
+  );

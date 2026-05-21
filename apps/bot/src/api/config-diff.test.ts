@@ -21,7 +21,19 @@ const baseConfig: AppConfig = {
   },
   logging: { level: 'info', rotateDays: 14, chatLog: true, chatLogRetentionDays: 14 },
   database: { path: '/data/mosbot.db' },
-  schedule: { enabled: false, start: '08:00', end: '22:00', timezone: 'UTC' },
+  schedule: {
+    enabled: false,
+    timezone: 'UTC',
+    windows: {
+      mon: { start: '08:00', end: '22:00' },
+      tue: { start: '08:00', end: '22:00' },
+      wed: { start: '08:00', end: '22:00' },
+      thu: { start: '08:00', end: '22:00' },
+      fri: { start: '08:00', end: '22:00' },
+      sat: { start: '08:00', end: '22:00' },
+      sun: { start: '08:00', end: '22:00' },
+    },
+  },
 };
 
 const clone = (cfg: AppConfig): AppConfig => JSON.parse(JSON.stringify(cfg)) as AppConfig;

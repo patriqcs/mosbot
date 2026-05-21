@@ -34,6 +34,18 @@ describe('StatsRepo', () => {
     expect(c.channelsJoined).toBe(1);
   });
 
+  it('deleteAllChat removes every chat row and returns the count', () => {
+    repo.recordChat('alice', 'u1', 'hi');
+    repo.recordChat('alice', 'u2', '!play');
+    repo.recordChat('bob', 'u3', 'gg');
+    expect(repo.deleteAllChat()).toBe(3);
+    const remaining = db.prepare('SELECT COUNT(*) AS c FROM chat_messages').get() as {
+      c: number;
+    };
+    expect(remaining.c).toBe(0);
+    expect(repo.deleteAllChat()).toBe(0);
+  });
+
   it('counts plays per channel (case-insensitive)', () => {
     repo.recordPlay('p', 'alice');
     repo.recordPlay('p', 'alice');

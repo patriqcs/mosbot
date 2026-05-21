@@ -66,26 +66,75 @@ const isValidTimezone = (tz: string): boolean => {
   }
 };
 
-export const ScheduleConfig = z
+export const Weekday = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+export type Weekday = z.infer<typeof Weekday>;
+export const WEEKDAYS: readonly Weekday[] = [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+] as const;
+
+export const TimeWindow = z
   .object({
-    enabled: z.boolean().default(false),
-    start: z
-      .string()
-      .regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "08:00")')
-      .default('08:00'),
-    end: z
-      .string()
-      .regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "22:00")')
-      .default('22:00'),
-    timezone: z
-      .string()
-      .min(1)
-      .refine(isValidTimezone, 'invalid IANA timezone (e.g. "Europe/Berlin")')
-      .default('UTC'),
+    start: z.string().regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "12:00")'),
+    end: z.string().regex(TIME_24H, 'expected HH:MM in 24h format (e.g. "16:00")'),
   })
-  .refine((s) => s.start !== s.end, {
+  .refine((w) => w.start !== w.end, {
     message: 'start and end must differ',
     path: ['end'],
+  });
+export type TimeWindow = z.infer<typeof TimeWindow>;
+
+const ScheduleWindows = z
+  .record(Weekday, TimeWindow)
+  .refine((o) => Object.keys(o).length >= 1, {
+    message: 'windows must contain at least one day',
+  });
+
+const buildAllDayWindows = (start: string, end: string): Record<Weekday, TimeWindow> =>
+  Object.fromEntries(WEEKDAYS.map((d) => [d, { start, end }])) as Record<
+    Weekday,
+    TimeWindow
+  >;
+
+export const ScheduleConfig = z
+  .object({
+    enabled: z.boolean().optional(),
+    timezone: z.string().min(1).optional(),
+    // Legacy fields — kept ONLY so older configs that used a single global
+    // start/end without `windows` migrate cleanly. New code should write
+    // `windows` directly.
+    start: z.string().regex(TIME_24H).optional(),
+    end: z.string().regex(TIME_24H).optional(),
+    windows: ScheduleWindows.optional(),
+  })
+  .transform((raw, ctx) => {
+    const timezone = raw.timezone ?? 'UTC';
+    if (!isValidTimezone(timezone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['timezone'],
+        message: 'invalid IANA timezone (e.g. "Europe/Berlin")',
+      });
+      return z.NEVER;
+    }
+    let windows = raw.windows;
+    if (!windows) {
+      if (raw.start !== undefined && raw.end !== undefined) {
+        windows = buildAllDayWindows(raw.start, raw.end);
+      } else {
+        windows = buildAllDayWindows('12:00', '16:00');
+      }
+    }
+    return {
+      enabled: raw.enabled ?? true,
+      timezone,
+      windows,
+    };
   });
 
 export const AppConfig = z.object({
@@ -97,12 +146,7 @@ export const AppConfig = z.object({
   server: ServerConfig,
   logging: LoggingConfig,
   database: DatabaseConfig,
-  schedule: ScheduleConfig.default({
-    enabled: false,
-    start: '08:00',
-    end: '22:00',
-    timezone: 'UTC',
-  }),
+  schedule: ScheduleConfig.default({}),
 });
 
 export type AppConfig = z.infer<typeof AppConfig>;

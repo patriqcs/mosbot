@@ -21,6 +21,29 @@ const parseHHMM = (hhmm: string): number => {
   return Number(h) * 60 + Number(m);
 };
 
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+const WEEKDAY_BY_INTL: Record<string, Weekday> = {
+  Mon: 'mon',
+  Tue: 'tue',
+  Wed: 'wed',
+  Thu: 'thu',
+  Fri: 'fri',
+  Sat: 'sat',
+  Sun: 'sun',
+};
+
+export const weekdayIn = (epochMs: number, timezone: string): Weekday => {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+  });
+  const short = fmt.format(new Date(epochMs));
+  const w = WEEKDAY_BY_INTL[short];
+  if (!w) throw new Error(`unexpected weekday output: ${short}`);
+  return w;
+};
+
 export const minutesInTimezone = (epochMs: number, timezone: string): number => {
   const fmt = new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
@@ -40,15 +63,55 @@ export const minutesInTimezone = (epochMs: number, timezone: string): number => 
   return h * 60 + m;
 };
 
+const DAY_BEFORE: Record<Weekday, Weekday> = {
+  mon: 'sun',
+  tue: 'mon',
+  wed: 'tue',
+  thu: 'wed',
+  fri: 'thu',
+  sat: 'fri',
+  sun: 'sat',
+};
+
+/**
+ * True if the bot should be running at `epochMs` according to `schedule`.
+ *
+ * Per-day windows model. For each instant, the runner checks:
+ *   1) Today's window (if set): standard start <= now < end, with overnight
+ *      windows (start > end) running from start until midnight on today.
+ *   2) Yesterday's overnight spillover: if yesterday's window crosses midnight,
+ *      we are still inside it as long as now < yesterday.end.
+ *
+ * The spillover rule preserves the legacy "22:00–06:00 every night" semantics
+ * after auto-migration: each day's overnight window naturally extends into the
+ * following morning, even when day-specific windows differ.
+ */
 export const isInWindow = (epochMs: number, schedule: ScheduleConfig): boolean => {
-  const nowMin = minutesInTimezone(epochMs, schedule.timezone);
-  const startMin = parseHHMM(schedule.start);
-  const endMin = parseHHMM(schedule.end);
-  if (startMin === endMin) return false;
-  if (startMin < endMin) {
-    return nowMin >= startMin && nowMin < endMin;
+  const tz = schedule.timezone;
+  const nowMin = minutesInTimezone(epochMs, tz);
+  const today = weekdayIn(epochMs, tz);
+  const todayWin = schedule.windows[today];
+  if (todayWin) {
+    const s = parseHHMM(todayWin.start);
+    const e = parseHHMM(todayWin.end);
+    if (s !== e) {
+      if (s < e) {
+        if (nowMin >= s && nowMin < e) return true;
+      } else if (nowMin >= s) {
+        // overnight, pre-midnight portion of today's window
+        return true;
+      }
+    }
   }
-  return nowMin >= startMin || nowMin < endMin;
+  // Yesterday's overnight window may extend into today's morning.
+  const yesterday = DAY_BEFORE[today];
+  const yesterdayWin = schedule.windows[yesterday];
+  if (yesterdayWin) {
+    const s = parseHHMM(yesterdayWin.start);
+    const e = parseHHMM(yesterdayWin.end);
+    if (s > e && nowMin < e) return true;
+  }
+  return false;
 };
 
 export class ScheduleRunner {
@@ -90,9 +153,8 @@ export class ScheduleRunner {
     this.logger.info(
       {
         enabled: next.enabled,
-        start: next.start,
-        end: next.end,
         timezone: next.timezone,
+        windows: next.windows,
       },
       'schedule updated',
     );

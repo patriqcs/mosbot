@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
-import { AppConfig } from '@mosbot/shared';
+import { AppConfig, type Weekday, WEEKDAYS } from '@mosbot/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,9 +86,8 @@ interface EditableConfig {
   };
   schedule: {
     enabled: boolean;
-    start: string;
-    end: string;
     timezone: string;
+    windows: Partial<Record<Weekday, { start: string; end: string }>>;
   };
   accounts: AccountEntry[];
   server: {
@@ -99,8 +97,6 @@ interface EditableConfig {
   };
   database: { path: string };
 }
-
-const TIME_24H = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const detectBrowserTimezone = (): string => {
   try {
@@ -177,10 +173,11 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
       return {
         ...(rawParsed as EditableConfig),
         schedule: rawParsed.schedule ?? {
-          enabled: false,
-          start: '08:00',
-          end: '22:00',
+          enabled: true,
           timezone: detectBrowserTimezone(),
+          windows: Object.fromEntries(
+            WEEKDAYS.map((d) => [d, { start: '12:00', end: '16:00' }]),
+          ),
         },
       };
     } catch {
@@ -322,13 +319,6 @@ const RestartRequiredSections = ({
       </h2>
       <FieldHelp text="Changes in these sections need a container restart to take effect. Each section has its own Apply button with a confirmation dialog so you don't trigger a restart by accident." />
     </div>
-    <p className="text-xs text-muted-foreground">
-      Accounts (add / remove / enable) are managed on the{' '}
-      <Link to="/accounts" className="font-medium text-primary hover:underline">
-        Accounts
-      </Link>{' '}
-      page.
-    </p>
     <div className="grid gap-6 md:grid-cols-2">
       <ServerBindCard
         value={{ host: config.server.host, port: config.server.port }}
@@ -673,9 +663,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             max={365}
             onChange={(v) => update('logging', { rotateDays: v })}
           />
-          <LabeledCheckbox
-            label="Persist chat messages to SQLite"
-            help="Store every observed chat message into the SQLite database for stats and retrospective analysis. Off = stats still count !play events but individual messages are not kept."
+          <ChatLogToggle
             value={config.logging.chatLog}
             onChange={(v) => update('logging', { chatLog: v })}
           />
@@ -811,6 +799,47 @@ const LabeledCheckbox = ({
   </div>
 );
 
+interface ChatLogToggleProps {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}
+
+const ChatLogToggle = ({ value, onChange }: ChatLogToggleProps): JSX.Element => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const handleChange = (v: boolean): void => {
+    if (!v && value) {
+      setConfirmOpen(true);
+      return;
+    }
+    onChange(v);
+  };
+  return (
+    <>
+      <LabeledCheckbox
+        label="Persist chat messages to SQLite"
+        help="Store every observed chat message into the SQLite database for stats and retrospective analysis. Off = stats still count !play events but individual messages are not kept."
+        value={value}
+        onChange={handleChange}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Disable chat persistence?"
+        description={
+          <span>
+            Turning this off will <strong>permanently delete all stored chat
+            messages</strong> from the SQLite database. Stats counters
+            (lobbies, plays) are not affected. This cannot be undone.
+          </span>
+        }
+        confirmLabel="Disable & delete"
+        destructive
+        onConfirm={() => onChange(false)}
+      />
+    </>
+  );
+};
+
 interface TagListProps {
   label: string;
   values: string[];
@@ -823,94 +852,279 @@ interface ScheduleEditorProps {
   onChange: (v: EditableConfig['schedule']) => void;
 }
 
+const WEEKDAY_LABEL: Record<Weekday, string> = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+
+const allWindowsEqual = (
+  windows: Partial<Record<Weekday, { start: string; end: string }>>,
+): boolean => {
+  const values = Object.values(windows).filter(
+    (v): v is { start: string; end: string } => v !== undefined,
+  );
+  if (values.length <= 1) return true;
+  const first = values[0]!;
+  return values.every((w) => w.start === first.start && w.end === first.end);
+};
+
+const firstWindow = (
+  windows: Partial<Record<Weekday, { start: string; end: string }>>,
+): { start: string; end: string } => {
+  for (const d of WEEKDAYS) {
+    const w = windows[d];
+    if (w) return w;
+  }
+  return { start: '12:00', end: '16:00' };
+};
+
 const ScheduleEditor = ({ value, onChange }: ScheduleEditorProps): JSX.Element => {
-  const overnight = value.start !== value.end && value.start > value.end;
-  const sameTime = value.start === value.end;
-  const startInvalid = !TIME_24H.test(value.start);
-  const endInvalid = !TIME_24H.test(value.end);
   const tzInvalid = value.timezone.length === 0 || !isValidTimezone(value.timezone);
+  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
+
+  const selectedDays = useMemo(
+    () => WEEKDAYS.filter((d) => value.windows[d] !== undefined),
+    [value.windows],
+  );
+
+  // Auto-detect per-day mode: differing times in the existing windows.
+  const [perDayMode, setPerDayMode] = useState<boolean>(() => !allWindowsEqual(value.windows));
+  const simpleTime = firstWindow(value.windows);
+
+  const handleEnabledChange = (v: boolean): void => {
+    if (!v && value.enabled) {
+      setDisableConfirmOpen(true);
+      return;
+    }
+    onChange({ ...value, enabled: v });
+  };
+
+  const toggleDay = (day: Weekday): void => {
+    const next = { ...value.windows };
+    if (next[day]) {
+      delete next[day];
+    } else {
+      // Use simpleTime (or last known time) as the new day's default.
+      next[day] = { ...simpleTime };
+    }
+    onChange({ ...value, windows: next });
+  };
+
+  const setSimpleTime = (patch: Partial<{ start: string; end: string }>): void => {
+    const merged = { ...simpleTime, ...patch };
+    const next: Partial<Record<Weekday, { start: string; end: string }>> = {};
+    for (const d of selectedDays) {
+      next[d] = { ...merged };
+    }
+    onChange({ ...value, windows: next });
+  };
+
+  const setDayTime = (
+    day: Weekday,
+    patch: Partial<{ start: string; end: string }>,
+  ): void => {
+    const current = value.windows[day] ?? { ...simpleTime };
+    onChange({
+      ...value,
+      windows: { ...value.windows, [day]: { ...current, ...patch } },
+    });
+  };
+
+  const copyMonToAll = (): void => {
+    const mon = value.windows.mon;
+    if (!mon) return;
+    const next: Partial<Record<Weekday, { start: string; end: string }>> = {};
+    for (const d of selectedDays) {
+      next[d] = { ...mon };
+    }
+    onChange({ ...value, windows: next });
+  };
+
+  const togglePerDayMode = (on: boolean): void => {
+    setPerDayMode(on);
+    if (!on) {
+      // collapsing to simple mode: align all selected days to the first one
+      const t = simpleTime;
+      const next: Partial<Record<Weekday, { start: string; end: string }>> = {};
+      for (const d of selectedDays) {
+        next[d] = { ...t };
+      }
+      onChange({ ...value, windows: next });
+    }
+  };
+
+  const noDaysSelected = selectedDays.length === 0;
 
   return (
     <div className="space-y-3">
       <LabeledCheckbox
         label="Schedule enabled"
-        help="When on, the bot only runs inside the Start–End window. Outside the window it is automatically stopped. A manual Start/Stop overrides until the next schedule edge."
+        help="When on, the bot only runs inside the time window on selected weekdays. A manual Start/Stop overrides until the next schedule edge."
         value={value.enabled}
-        onChange={(v) => onChange({ ...value, enabled: v })}
+        onChange={handleEnabledChange}
       />
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="flex flex-col gap-1">
-          <label className="flex items-center gap-1.5 text-xs font-medium">
-            Start (24h)
-            <FieldHelp text="Time of day when the bot starts. HH:MM, 24-hour format. Interpreted in the timezone selected below." />
-          </label>
-          <Input
-            type="time"
-            step={60}
-            value={value.start}
-            onChange={(e) => onChange({ ...value, start: e.target.value })}
-            disabled={!value.enabled}
-          />
-          {startInvalid && (
-            <p className="text-xs text-destructive">Invalid time. Expected HH:MM.</p>
-          )}
+      <ConfirmDialog
+        open={disableConfirmOpen}
+        onOpenChange={setDisableConfirmOpen}
+        title="Disable the schedule?"
+        description={
+          <span>
+            Disabling the schedule means the bot runs 24/7 (until you stop it
+            manually). Running accounts around the clock dramatically increases the
+            risk of in-game bans. You are solely responsible for the accounts you
+            connect — use at your own risk.
+          </span>
+        }
+        confirmLabel="Disable anyway"
+        destructive
+        onConfirm={() => onChange({ ...value, enabled: false })}
+      />
+
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-1.5 text-xs font-medium">
+          Days
+          <FieldHelp text="Click a day to toggle it. The bot only runs on selected days, inside the time window. An overnight window (start > end) extends into the next morning." />
+        </label>
+        <div className="flex flex-wrap gap-1">
+          {WEEKDAYS.map((d) => {
+            const selected = value.windows[d] !== undefined;
+            return (
+              <Button
+                key={d}
+                type="button"
+                size="sm"
+                variant={selected ? 'default' : 'outline'}
+                onClick={() => toggleDay(d)}
+                disabled={!value.enabled}
+              >
+                {WEEKDAY_LABEL[d]}
+              </Button>
+            );
+          })}
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="flex items-center gap-1.5 text-xs font-medium">
-            End (24h)
-            <FieldHelp text="Time of day when the bot stops. If End is earlier than Start, the window crosses midnight (e.g. 22:00–06:00)." />
-          </label>
-          <Input
-            type="time"
-            step={60}
-            value={value.end}
-            onChange={(e) => onChange({ ...value, end: e.target.value })}
-            disabled={!value.enabled}
-          />
-          {endInvalid && (
-            <p className="text-xs text-destructive">Invalid time. Expected HH:MM.</p>
-          )}
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="flex items-center gap-1.5 text-xs font-medium">
-            Timezone
-            <FieldHelp text="IANA timezone such as 'Europe/Berlin' or 'America/New_York'. Determines how Start and End are interpreted. DST is handled automatically." />
-          </label>
-          <div className="flex gap-2">
+        {noDaysSelected && value.enabled && (
+          <p className="text-xs text-destructive">Select at least one day.</p>
+        )}
+      </div>
+
+      <LabeledCheckbox
+        label="Different times per day"
+        help="Off = one time window applies to every selected day. On = each selected day has its own start/end."
+        value={perDayMode}
+        onChange={togglePerDayMode}
+      />
+
+      {!perDayMode ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              Start (24h)
+            </label>
             <Input
-              value={value.timezone}
-              onChange={(e) => onChange({ ...value, timezone: e.target.value.trim() })}
-              placeholder="Europe/Berlin"
-              disabled={!value.enabled}
+              type="time"
+              step={60}
+              value={simpleTime.start}
+              onChange={(e) => setSimpleTime({ start: e.target.value })}
+              disabled={!value.enabled || noDaysSelected}
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              End (24h)
+            </label>
+            <Input
+              type="time"
+              step={60}
+              value={simpleTime.end}
+              onChange={(e) => setSimpleTime({ end: e.target.value })}
+              disabled={!value.enabled || noDaysSelected}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Per-day windows
+            </span>
             <Button
               type="button"
-              variant="outline"
               size="sm"
-              onClick={() => onChange({ ...value, timezone: detectBrowserTimezone() })}
-              disabled={!value.enabled}
-              title="Detect browser timezone"
+              variant="outline"
+              onClick={copyMonToAll}
+              disabled={!value.enabled || !value.windows.mon || selectedDays.length < 2}
+              title="Copy Monday's time to all other selected days"
             >
-              Auto
+              Copy Mon to all
             </Button>
           </div>
-          {tzInvalid && value.enabled && (
-            <p className="text-xs text-destructive">
-              Invalid IANA timezone (e.g. &ldquo;Europe/Berlin&rdquo;).
-            </p>
-          )}
+          {selectedDays.map((d) => {
+            const w = value.windows[d]!;
+            return (
+              <div
+                key={d}
+                className="grid grid-cols-[3.5rem_1fr_auto_1fr] items-center gap-2"
+              >
+                <span className="text-xs font-medium">{WEEKDAY_LABEL[d]}</span>
+                <Input
+                  type="time"
+                  step={60}
+                  value={w.start}
+                  onChange={(e) => setDayTime(d, { start: e.target.value })}
+                  disabled={!value.enabled}
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <Input
+                  type="time"
+                  step={60}
+                  value={w.end}
+                  onChange={(e) => setDayTime(d, { end: e.target.value })}
+                  disabled={!value.enabled}
+                />
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-1.5 text-xs font-medium">
+          Timezone
+          <FieldHelp text="IANA timezone such as 'Europe/Berlin' or 'America/New_York'. Determines how the day boundaries and times are interpreted. DST is handled automatically." />
+        </label>
+        <div className="flex gap-2">
+          <Input
+            value={value.timezone}
+            onChange={(e) => onChange({ ...value, timezone: e.target.value.trim() })}
+            placeholder="Europe/Berlin"
+            disabled={!value.enabled}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onChange({ ...value, timezone: detectBrowserTimezone() })}
+            disabled={!value.enabled}
+            title="Detect browser timezone"
+          >
+            Auto
+          </Button>
+        </div>
+        {tzInvalid && value.enabled && (
+          <p className="text-xs text-destructive">
+            Invalid IANA timezone (e.g. &ldquo;Europe/Berlin&rdquo;).
+          </p>
+        )}
       </div>
-      {sameTime && value.enabled && (
-        <p className="text-xs text-destructive">Start and End must differ.</p>
-      )}
-      {overnight && value.enabled && !sameTime && !startInvalid && !endInvalid && (
-        <p className="text-xs text-muted-foreground">
-          Overnight window: bot runs from {value.start} across midnight until {value.end}.
-        </p>
-      )}
+
       <p className="text-xs text-muted-foreground">
-        Schedule changes apply live without a container restart.
+        Schedule changes apply live without a container restart. Overnight windows
+        (start &gt; end) automatically extend into the next morning.
       </p>
     </div>
   );

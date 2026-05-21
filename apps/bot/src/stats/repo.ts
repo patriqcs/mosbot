@@ -81,6 +81,11 @@ export class StatsRepo {
     return info.changes;
   }
 
+  deleteAllChat(): number {
+    const info = this.db.prepare('DELETE FROM chat_messages').run();
+    return info.changes;
+  }
+
   vacuum(): void {
     this.db.exec('VACUUM');
   }

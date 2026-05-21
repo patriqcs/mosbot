@@ -256,13 +256,19 @@ const applyHotReloadChanges = async (
       case 'server.auth':
         Object.assign(deps.config.server.auth, next.server.auth);
         break;
-      case 'logging':
+      case 'logging': {
         // rotateDays is intentionally NOT applied live (restart-required).
+        const chatLogDisabled =
+          deps.config.logging.chatLog && !next.logging.chatLog;
         deps.config.logging.level = next.logging.level;
         deps.config.logging.chatLog = next.logging.chatLog;
         deps.config.logging.chatLogRetentionDays = next.logging.chatLogRetentionDays;
         deps.updateLogLevel(next.logging.level);
+        if (chatLogDisabled) {
+          deps.stats.deleteAllChat();
+        }
         break;
+      }
     }
   }
 };

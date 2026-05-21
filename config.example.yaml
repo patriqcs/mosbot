@@ -53,16 +53,24 @@ logging:
   chatLog: true                 # persist observed chat messages to SQLite
   chatLogRetentionDays: 14      # prune chat rows older than this each hour
 
-# Schedule (Zeitschaltuhr): when enabled, the bot only runs inside the time window
-# below. Outside the window the orchestrator is stopped. Manual Start/Stop on the
-# dashboard wins until the next schedule edge (Start- or End-time). If start > end,
-# the window crosses midnight (e.g. 22:00–06:00). Hot-reloadable — no restart
-# required for changes to this block.
+# Schedule (Zeitschaltuhr): per-day time windows. The bot only runs on weekdays
+# that are present in `windows`, inside the specified HH:MM range. Days omitted
+# from `windows` are off. An overnight window (start > end) automatically extends
+# into the next morning, so a 22:00–06:00 entry on `mon` keeps the bot running
+# until 06:00 on Tuesday. Hot-reloadable — no restart required.
+# Defaults to a 12:00–16:00 window every day to keep accounts well under the
+# radar; running 24/7 dramatically increases the risk of in-game bans.
 schedule:
-  enabled: false
-  start: "08:00"              # HH:MM in 24h format
-  end: "22:00"
-  timezone: "UTC"             # IANA name, e.g. "Europe/Berlin", "America/New_York"
+  enabled: true
+  timezone: "UTC"                # IANA name, e.g. "Europe/Berlin"
+  windows:
+    mon: { start: "12:00", end: "16:00" }
+    tue: { start: "12:00", end: "16:00" }
+    wed: { start: "12:00", end: "16:00" }
+    thu: { start: "12:00", end: "16:00" }
+    fri: { start: "12:00", end: "16:00" }
+    sat: { start: "12:00", end: "16:00" }
+    sun: { start: "12:00", end: "16:00" }
 
 database:
   path: /data/mosbot.db
