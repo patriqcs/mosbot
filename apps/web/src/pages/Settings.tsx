@@ -12,6 +12,7 @@ import { UndoToast, ErrorToast } from '@/components/UndoToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { AlertTriangle } from 'lucide-react';
+import { normalizeEditableConfig } from '@/lib/normalize-config';
 
 const ENV_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
 
@@ -174,24 +175,10 @@ const SettingsEditor = ({ initialRaw, path }: SettingsEditorProps): JSX.Element 
   const parsed = useMemo<EditableConfig | null>(() => {
     if (!raw) return null;
     try {
-      const rawParsed = loadYaml(raw) as Partial<EditableConfig>;
-      if (!rawParsed || typeof rawParsed !== 'object') return null;
-      return {
-        ...(rawParsed as EditableConfig),
-        schedule: rawParsed.schedule ?? {
-          enabled: true,
-          timezone: detectBrowserTimezone(),
-          windows: Object.fromEntries(
-            WEEKDAYS.map((d) => [d, { start: '12:00', end: '16:00' }]),
-          ),
-        },
-        safety: rawParsed.safety ?? {
-          preSendJitterMs: { min: 1500, max: 6000 },
-          playProbability: 0.8,
-          scheduleJitterMinutes: 5,
-          maxPlaysPerDay: 40,
-        },
-      };
+      const rawParsed = loadYaml(raw);
+      const normalized = normalizeEditableConfig(rawParsed);
+      if (!normalized) return null;
+      return normalized as unknown as EditableConfig;
     } catch {
       return null;
     }
