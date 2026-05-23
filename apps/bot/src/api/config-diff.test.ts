@@ -7,6 +7,7 @@ const baseConfig: AppConfig = {
     intervalMinutes: 3,
     maxStreams: 10,
     minViewers: 30,
+    maxViewers: null,
     language: null,
     sortBy: 'most-viewers',
   },

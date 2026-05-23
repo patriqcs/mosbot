@@ -162,6 +162,7 @@ discovery:
   intervalMinutes: 3
   maxStreams: 10
   minViewers: 30
+  maxViewers: null          # skip streams above this count; null = no cap
   language: null            # "en", "de", or CSV like "de,en"; null = any
   sortBy: most-viewers      # "most-viewers" (big streams) or "least-viewers" (small streams)
 

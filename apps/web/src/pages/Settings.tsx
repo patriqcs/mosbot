@@ -62,6 +62,7 @@ interface EditableConfig {
     intervalMinutes: number;
     maxStreams: number;
     minViewers: number;
+    maxViewers: number | null;
     language: string | null;
     sortBy: 'most-viewers' | 'least-viewers';
   };
@@ -546,6 +547,13 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
             min={0}
             onChange={(v) => update('discovery', { minViewers: v })}
           />
+          <LabeledOptionalNumber
+            label="Max viewers (empty = no cap)"
+            help="Skip streams above this viewer count. Useful to focus on smaller communities where !play competition is lower. Leave empty for no upper cap."
+            value={config.discovery.maxViewers}
+            min={1}
+            onChange={(v) => update('discovery', { maxViewers: v })}
+          />
           <LabeledText
             label="Languages (ISO codes, comma-separated, empty = any)"
             help="ISO language code(s), e.g. 'en' for English only, or 'de,en' for German + English. Multiple codes are comma-separated. Only streams in one of these languages are considered. Leave empty to accept any language."
@@ -760,6 +768,46 @@ const LabeledNumber = ({
       max={max}
       onChange={(e) => {
         const n = Number(e.target.value);
+        if (Number.isFinite(n)) onChange(n);
+      }}
+    />
+  </div>
+);
+
+interface LabeledOptionalNumberProps {
+  label: string;
+  value: number | null;
+  min?: number;
+  max?: number;
+  help?: string;
+  onChange: (v: number | null) => void;
+}
+
+const LabeledOptionalNumber = ({
+  label,
+  value,
+  min,
+  max,
+  help,
+  onChange,
+}: LabeledOptionalNumberProps): JSX.Element => (
+  <div className="flex flex-col gap-1">
+    <label className="flex items-center gap-1.5 text-xs font-medium">
+      {label}
+      {help && <FieldHelp text={help} />}
+    </label>
+    <Input
+      type="number"
+      value={value ?? ''}
+      min={min}
+      max={max}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === '') {
+          onChange(null);
+          return;
+        }
+        const n = Number(raw);
         if (Number.isFinite(n)) onChange(n);
       }}
     />

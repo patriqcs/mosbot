@@ -115,7 +115,7 @@ export class Discovery {
 
   async fetchLiveStreams(): Promise<StreamInfo[]> {
     const gameId = await this.resolveGameId();
-    const { maxStreams, minViewers, language, sortBy } = this.deps.config;
+    const { maxStreams, minViewers, maxViewers, language, sortBy } = this.deps.config;
     const collected: StreamInfo[] = [];
     let cursor: string | null = null;
     for (let guard = 0; guard < 10; guard++) {
@@ -136,6 +136,7 @@ export class Discovery {
           reachedFloor = true;
           break;
         }
+        if (maxViewers !== null && s.viewer_count > maxViewers) continue;
         collected.push(toStreamInfo(s));
       }
       if (reachedFloor) break;

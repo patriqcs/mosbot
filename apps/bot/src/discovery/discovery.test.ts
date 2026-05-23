@@ -11,6 +11,7 @@ const makeDeps = () => ({
     intervalMinutes: 3,
     maxStreams: 10,
     minViewers: 30,
+    maxViewers: null as number | null,
     language: null,
     sortBy: 'most-viewers' as const,
   },
@@ -97,5 +98,66 @@ describe('Discovery.fetchLiveStreamsForLogins', () => {
     const d = new Discovery(makeDeps());
     await d.fetchLiveStreamsForLogins(logins);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Discovery.fetchLiveStreams maxViewers cap', () => {
+  const origFetch = globalThis.fetch;
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
+
+  const respond = (urls: Record<string, unknown>) =>
+    vi.fn().mockImplementation(async (input: string) => {
+      const url = String(input);
+      for (const [needle, body] of Object.entries(urls)) {
+        if (url.includes(needle)) {
+          return { ok: true, json: async () => body };
+        }
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+
+  it('skips streams whose viewer_count exceeds maxViewers and keeps the rest', async () => {
+    const fetchSpy = respond({
+      '/games?': { data: [{ id: '12345', name: 'Marbles On Stream' }] },
+      '/streams?': {
+        data: [
+          helixStream('whale', 50_000), // above cap → skip
+          helixStream('mid', 5_000), // ≤ cap → keep
+          helixStream('small', 200), // ≤ cap → keep
+        ],
+        pagination: {},
+      },
+    });
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const deps = makeDeps();
+    deps.config = { ...deps.config, maxViewers: 10_000 };
+    const d = new Discovery(deps);
+
+    const out = await d.fetchLiveStreams();
+    expect(out.map((s) => s.userLogin)).toEqual(['mid', 'small']);
+  });
+
+  it('applies no upper cap when maxViewers is null', async () => {
+    const fetchSpy = respond({
+      '/games?': { data: [{ id: '12345', name: 'Marbles On Stream' }] },
+      '/streams?': {
+        data: [
+          helixStream('whale', 50_000),
+          helixStream('mid', 5_000),
+        ],
+        pagination: {},
+      },
+    });
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const d = new Discovery(makeDeps()); // maxViewers stays null
+    const out = await d.fetchLiveStreams();
+    expect(out.map((s) => s.userLogin)).toEqual(['whale', 'mid']);
   });
 });
