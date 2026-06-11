@@ -68,7 +68,7 @@ export const useBttvStore = create<BttvState>()(
         if (isFresh(s.global, Date.now())) return;
         set({ inflightGlobal: true });
         try {
-          const r = await fetch(BTTV_GLOBAL_URL);
+          const r = await fetch(BTTV_GLOBAL_URL, { signal: AbortSignal.timeout(8_000) });
           if (!r.ok) throw new Error(`bttv global ${r.status}`);
           const raw = (await r.json()) as BttvRaw[];
           set({
@@ -91,7 +91,9 @@ export const useBttvStore = create<BttvState>()(
           inflightChannels: { ...state.inflightChannels, [key]: true },
         }));
         try {
-          const r = await fetch(BTTV_CHANNEL_URL(twitchUserId));
+          const r = await fetch(BTTV_CHANNEL_URL(twitchUserId), {
+            signal: AbortSignal.timeout(8_000),
+          });
           let byName: Record<string, BttvEmote> = {};
           if (r.ok) {
             const data = (await r.json()) as BttvChannelResponse;

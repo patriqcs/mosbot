@@ -1,17 +1,24 @@
 import { z } from 'zod';
 
-export const DiscoveryConfig = z.object({
-  intervalMinutes: z.number().int().min(1).max(60).default(3),
-  maxStreams: z.number().int().min(1).max(100).default(10),
-  minViewers: z.number().int().min(0).default(30),
-  maxViewers: z.number().int().min(1).nullable().default(null),
-  language: z
-    .string()
-    .regex(/^[a-zA-Z]{2,3}(\s*,\s*[a-zA-Z]{2,3})*$/, 'expected ISO codes, e.g. "en" or "de,en"')
-    .nullable()
-    .default(null),
-  sortBy: z.enum(['most-viewers', 'least-viewers']).default('most-viewers'),
-});
+export const DiscoveryConfig = z
+  .object({
+    intervalMinutes: z.number().int().min(1).max(60).default(3),
+    maxStreams: z.number().int().min(1).max(100).default(10),
+    minViewers: z.number().int().min(0).default(30),
+    maxViewers: z.number().int().min(1).nullable().default(null),
+    language: z
+      .string()
+      .regex(/^[a-zA-Z]{2,3}(\s*,\s*[a-zA-Z]{2,3})*$/, 'expected ISO codes, e.g. "en" or "de,en"')
+      .nullable()
+      .default(null),
+    sortBy: z.enum(['most-viewers', 'least-viewers']).default('most-viewers'),
+  })
+  // A maxViewers below minViewers makes every stream fall outside the band, so
+  // discovery would silently return zero streams forever. Reject it up front.
+  .refine((d) => d.maxViewers === null || d.maxViewers >= d.minViewers, {
+    message: 'maxViewers must be >= minViewers',
+    path: ['maxViewers'],
+  });
 
 export const LobbyConfig = z.object({
   windowSeconds: z.number().int().min(5).max(600).default(30),
@@ -168,7 +175,14 @@ export const AppConfig = z.object({
   lobby: LobbyConfig,
   ratelimit: RateLimitConfig,
   channels: ChannelsConfig,
-  accounts: z.array(AccountConfig).min(1),
+  accounts: z
+    .array(AccountConfig)
+    .min(1)
+    // Names key the token store and the /accounts/:name routes (first match
+    // wins), so duplicates make the later account unreachable. Enforce uniqueness.
+    .refine((a) => new Set(a.map((x) => x.name)).size === a.length, {
+      message: 'account names must be unique',
+    }),
   server: ServerConfig,
   logging: LoggingConfig,
   database: DatabaseConfig,

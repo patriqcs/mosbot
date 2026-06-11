@@ -7,6 +7,7 @@ export interface TokenBucketOptions {
 export class TokenBucket {
   private tokens: number;
   private capacity: number;
+  private refillWindowMs: number;
   private ratePerMs: number;
   private lastRefill: number;
   private readonly now: () => number;
@@ -16,6 +17,7 @@ export class TokenBucket {
     if (opts.refillWindowMs <= 0) throw new Error('refillWindowMs must be > 0');
     this.capacity = opts.capacity;
     this.tokens = opts.capacity;
+    this.refillWindowMs = opts.refillWindowMs;
     this.ratePerMs = opts.capacity / opts.refillWindowMs;
     this.now = opts.now ?? Date.now;
     this.lastRefill = this.now();
@@ -29,8 +31,12 @@ export class TokenBucket {
     }
     if (opts.refillWindowMs !== undefined) {
       if (opts.refillWindowMs <= 0) throw new Error('refillWindowMs must be > 0');
-      this.ratePerMs = this.capacity / opts.refillWindowMs;
+      this.refillWindowMs = opts.refillWindowMs;
     }
+    // Rate is capacity per window; recompute after either input changes so a
+    // capacity-only update (the hot-reload path in orchestrator) keeps the
+    // "refill `capacity` tokens every `refillWindowMs`" invariant.
+    this.ratePerMs = this.capacity / this.refillWindowMs;
   }
 
   private refill(): void {

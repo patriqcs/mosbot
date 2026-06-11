@@ -60,6 +60,22 @@ describe('diffSections', () => {
     expect(diffSections(baseConfig, next).restartRequired).toEqual([]);
   });
 
+  it('does not flag schedule when only the weekday key order differs', () => {
+    const next = clone(baseConfig);
+    // Same windows, rebuilt in a different key insertion order (as the web UI
+    // can produce via spread updates). This must NOT count as a change.
+    next.schedule.windows = {
+      sun: { start: '08:00', end: '22:00' },
+      sat: { start: '08:00', end: '22:00' },
+      fri: { start: '08:00', end: '22:00' },
+      thu: { start: '08:00', end: '22:00' },
+      wed: { start: '08:00', end: '22:00' },
+      tue: { start: '08:00', end: '22:00' },
+      mon: { start: '08:00', end: '22:00' },
+    };
+    expect(diffSections(baseConfig, next).hotReloadable).not.toContain('schedule');
+  });
+
   it('detects discovery change as hot-reloadable', () => {
     const next = clone(baseConfig);
     next.discovery.intervalMinutes = 5;

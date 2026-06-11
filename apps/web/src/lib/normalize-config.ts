@@ -84,25 +84,26 @@ const normalizeSchedule = (raw: unknown): NormalizedSchedule => {
   return { enabled, timezone, windows: fallback.windows };
 };
 
+// Accept only real, finite numbers. `typeof NaN === 'number'` and
+// `typeof Infinity === 'number'` are both true, so a plain typeof check lets
+// non-finite values (e.g. from a hand-edited `.nan`/`.inf` in the YAML) slip
+// through and later serialise back to invalid YAML / break the form state.
+const finiteNum = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+
 const normalizeSafety = (raw: unknown): NormalizedSafety => {
   if (!isPlainObject(raw)) return { ...DEFAULT_SAFETY };
   const jitterRaw = isPlainObject(raw.preSendJitterMs) ? raw.preSendJitterMs : {};
-  const min = typeof jitterRaw.min === 'number' ? jitterRaw.min : DEFAULT_SAFETY.preSendJitterMs.min;
-  const max = typeof jitterRaw.max === 'number' ? jitterRaw.max : DEFAULT_SAFETY.preSendJitterMs.max;
+  const min = finiteNum(jitterRaw.min, DEFAULT_SAFETY.preSendJitterMs.min);
+  const max = finiteNum(jitterRaw.max, DEFAULT_SAFETY.preSendJitterMs.max);
   return {
     preSendJitterMs: { min, max },
-    playProbability:
-      typeof raw.playProbability === 'number'
-        ? raw.playProbability
-        : DEFAULT_SAFETY.playProbability,
-    scheduleJitterMinutes:
-      typeof raw.scheduleJitterMinutes === 'number'
-        ? raw.scheduleJitterMinutes
-        : DEFAULT_SAFETY.scheduleJitterMinutes,
-    maxPlaysPerDay:
-      typeof raw.maxPlaysPerDay === 'number'
-        ? raw.maxPlaysPerDay
-        : DEFAULT_SAFETY.maxPlaysPerDay,
+    playProbability: finiteNum(raw.playProbability, DEFAULT_SAFETY.playProbability),
+    scheduleJitterMinutes: finiteNum(
+      raw.scheduleJitterMinutes,
+      DEFAULT_SAFETY.scheduleJitterMinutes,
+    ),
+    maxPlaysPerDay: finiteNum(raw.maxPlaysPerDay, DEFAULT_SAFETY.maxPlaysPerDay),
   };
 };
 

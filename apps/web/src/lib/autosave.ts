@@ -21,6 +21,7 @@ export class AutoSaveController {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private pendingRaw: string;
   private lastSavedRaw: string;
+  private saveSeq = 0;
 
   constructor(private readonly opts: AutoSaveControllerOptions) {
     this.pendingRaw = opts.initialRaw;
@@ -63,11 +64,17 @@ export class AutoSaveController {
       this.opts.onError(new Error(validationError));
       return;
     }
+    // Tag this save; if another flush starts before we resolve, ours is stale
+    // and must not clobber the controller's saved-state view (last-write-wins
+    // by start order, not by completion order).
+    const seq = ++this.saveSeq;
     try {
       const result = await this.opts.save(toSave);
+      if (seq !== this.saveSeq) return;
       this.lastSavedRaw = toSave;
       this.opts.onSaved(result, preSnapshot, toSave);
     } catch (err) {
+      if (seq !== this.saveSeq) return;
       this.opts.onError(err as Error);
     }
   }

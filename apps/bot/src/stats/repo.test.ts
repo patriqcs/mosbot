@@ -70,6 +70,17 @@ describe('StatsRepo', () => {
     expect(repo.playsForChannel('ALICE')).toBe(2);
   });
 
+  it('normalises channel case on write so mixed-case plays count and group as one', () => {
+    repo.recordPlay('p', 'CoolStreamer');
+    repo.recordPlay('p', 'coolstreamer');
+    // playsForChannel lower-cases its query; the write side must match.
+    expect(repo.playsForChannel('coolstreamer')).toBe(2);
+    // and topChannels must not split the same channel into two rows.
+    const top = repo.aggregate('24h').topChannels;
+    expect(top).toHaveLength(1);
+    expect(top[0]).toEqual({ channel: 'coolstreamer', plays: 2 });
+  });
+
   it('aggregates over a window', () => {
     repo.recordPlay('p', 'a');
     repo.recordLobby('a', 4);

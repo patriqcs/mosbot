@@ -21,7 +21,25 @@ export interface SectionDiff {
   restartRequired: RestartRequiredSection[];
 }
 
-const eq = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+// Recursively sort object keys so the comparison is insensitive to key
+// insertion order. `schedule.windows` is a z.record that preserves insertion
+// order, and the web UI can rebuild it in a different order (e.g. via spread
+// updates) without any semantic change — a naive JSON.stringify would then
+// report a spurious "schedule" diff and trigger an unnecessary reconcile.
+const sortKeys = (v: unknown): unknown => {
+  if (Array.isArray(v)) return v.map(sortKeys);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, val]) => [k, sortKeys(val)]),
+    );
+  }
+  return v;
+};
+
+const eq = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
 
 /**
  * Compute which top-level config sections changed between old and new, and

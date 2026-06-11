@@ -123,6 +123,42 @@ describe('AutoSaveController', () => {
     expect(onSaved).toHaveBeenLastCalledWith(expect.anything(), 'v1', 'v0');
   });
 
+  it('discards a stale in-flight save when a newer save resolves first', async () => {
+    const deferreds: Array<{ raw: string; resolve: () => void }> = [];
+    const save = vi.fn(
+      (raw: string) =>
+        new Promise<SaveResult>((res) => {
+          deferreds.push({ raw, resolve: () => res(okResult()) });
+        }),
+    );
+    const onSaved = vi.fn();
+    const c = new AutoSaveController({
+      initialRaw: 'v0',
+      debounceMs: 500,
+      save,
+      onSaved,
+      onError: vi.fn(),
+    });
+    c.setRaw('A');
+    await vi.advanceTimersByTimeAsync(500); // flush A -> save('A') pending
+    const undoPromise = c.undo('B'); // overlapping immediate flush -> save('B')
+    await Promise.resolve();
+    expect(deferreds.map((d) => d.raw)).toEqual(['A', 'B']);
+    // Newer save B completes first, then the older A resolves late.
+    deferreds[1]!.resolve();
+    deferreds[0]!.resolve();
+    await undoPromise;
+    await vi.runAllTimersAsync();
+    // The server last received 'B'; the late 'A' result must not become the
+    // controller's notion of saved state.
+    expect(onSaved).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'B');
+    // 'B' is now the saved state -> a no-op setRaw('B') must not re-save.
+    c.setRaw('B');
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.runAllTimersAsync();
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
   it('dispose() clears the pending debounce so no save fires after', async () => {
     const save = vi.fn(async () => okResult());
     const c = new AutoSaveController({

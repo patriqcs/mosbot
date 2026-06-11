@@ -25,14 +25,15 @@ export interface ApiRoutesDeps {
 }
 
 export const registerApiRoutes = (app: FastifyInstance, deps: ApiRoutesDeps): void => {
+  // Unauthenticated health/liveness probe (Docker healthcheck, restart
+  // detection). Deliberately omits account identities and Twitch logins —
+  // exposing which accounts a Marbles bot runs is detection-sensitive. The
+  // frontend only consumes `uptime`; richer data lives behind requireAuth.
   app.get('/api/health', async () => {
-    const counts = deps.stats.counts();
     return {
       ok: true,
       db: 'up',
-      accounts: deps.auth.all().map((a) => ({ name: a.name, user: a.userLogin })),
       uptime: Math.floor(process.uptime()),
-      counts: { ...counts, channelsJoined: deps.orchestrator.joinedChannels().size },
     };
   });
 

@@ -83,6 +83,23 @@ describe('normalizeEditableConfig', () => {
     expect(out.safety).toEqual(raw.safety);
   });
 
+  it('rejects non-finite safety numbers and falls back to defaults', () => {
+    const raw = {
+      safety: {
+        preSendJitterMs: { min: NaN, max: Infinity },
+        playProbability: NaN,
+        scheduleJitterMinutes: Infinity,
+        maxPlaysPerDay: -Infinity,
+      },
+    };
+    const out = normalizeEditableConfig(raw)!;
+    expect(Number.isFinite(out.safety.preSendJitterMs.min)).toBe(true);
+    expect(Number.isFinite(out.safety.preSendJitterMs.max)).toBe(true);
+    expect(Number.isFinite(out.safety.playProbability)).toBe(true);
+    expect(Number.isFinite(out.safety.scheduleJitterMinutes)).toBe(true);
+    expect(Number.isFinite(out.safety.maxPlaysPerDay)).toBe(true);
+  });
+
   it('passes through other sections untouched', () => {
     const raw = {
       discovery: { intervalMinutes: 5 },

@@ -10,6 +10,12 @@ interface ChannelState {
   cooldownUntil: number;
 }
 
+// Above this many tracked channels, sweep out dead states on the next observe.
+// Far higher than the realistic count of concurrently active Marbles lobbies,
+// so the sweep is rare; it only bounds growth from churn (discovery cycling
+// through ever-changing channels over a long-running session).
+const PRUNE_THRESHOLD = 256;
+
 export class LobbyDetector {
   private readonly channels = new Map<string, ChannelState>();
   private windowMs: number;
@@ -43,6 +49,7 @@ export class LobbyDetector {
   observe(channel: string, user: string): { triggered: boolean; distinctUsers: number } {
     const ch = channel.toLowerCase();
     const u = user.toLowerCase();
+    if (this.channels.size > PRUNE_THRESHOLD) this.pruneDead();
     const state = this.channels.get(ch) ?? { recent: new Map(), cooldownUntil: 0 };
     const t = this.now();
     if (t < state.cooldownUntil) {
@@ -87,5 +94,31 @@ export class LobbyDetector {
   reset(channel?: string): void {
     if (channel) this.channels.delete(channel.toLowerCase());
     else this.channels.clear();
+  }
+
+  /** Number of tracked channel states (for tests/diagnostics). */
+  size(): number {
+    return this.channels.size;
+  }
+
+  /**
+   * Drop states for channels that are off cooldown and have no in-window
+   * activity left — they carry no information and would otherwise accumulate
+   * forever as discovery cycles through channels.
+   */
+  private pruneDead(): void {
+    const t = this.now();
+    const cutoff = t - this.windowMs;
+    for (const [ch, state] of this.channels) {
+      if (t < state.cooldownUntil) continue;
+      let alive = false;
+      for (const ts of state.recent.values()) {
+        if (ts >= cutoff) {
+          alive = true;
+          break;
+        }
+      }
+      if (!alive) this.channels.delete(ch);
+    }
   }
 }

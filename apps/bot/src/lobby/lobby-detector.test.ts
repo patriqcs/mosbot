@@ -27,6 +27,23 @@ describe('LobbyDetector', () => {
     expect(third.distinctUsers).toBe(3);
   });
 
+  it('evicts dead channel states so the map does not grow unbounded', () => {
+    const clock = makeClock();
+    const d = new LobbyDetector({
+      windowMs: 1_000,
+      minPlayers: 5,
+      cooldownMs: 0,
+      now: clock.now,
+    });
+    // Many one-off channels (e.g. discovery churn), none reaching a lobby.
+    for (let i = 0; i < 1_000; i++) d.observe(`ch${i}`, 'u1');
+    expect(d.size()).toBe(1_000);
+    // Let every recent entry age out, then one more observe triggers the sweep.
+    clock.advance(2_000);
+    d.observe('fresh', 'u1');
+    expect(d.size()).toBe(1);
+  });
+
   it('deduplicates users within the window', () => {
     const clock = makeClock();
     const d = new LobbyDetector({

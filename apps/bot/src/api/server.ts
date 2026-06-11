@@ -33,7 +33,10 @@ export const createApiServer = async (deps: ApiServerDeps): Promise<FastifyInsta
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,
+      // 'auto' sets Secure only when the request is HTTPS. With trustProxy on,
+      // this honours X-Forwarded-Proto so the cookie is Secure behind a TLS
+      // reverse proxy, yet still works on a plain-HTTP LAN deployment.
+      secure: 'auto',
       maxAge: 24 * 60 * 60 * 1000,
     },
     saveUninitialized: false,

@@ -54,6 +54,32 @@ const seededFloat = (seed: string): number => {
   return (h % 1_000_000) / 1_000_000;
 };
 
+// Deterministic per-(date, weekday) offset in [-jitterMinutes, +jitterMinutes].
+const jitterOffset = (dateKey: string, day: Weekday, jitterMinutes: number): number =>
+  Math.round((seededFloat(`${dateKey}:${day}`) * 2 - 1) * jitterMinutes);
+
+interface Win {
+  start: string;
+  end: string;
+}
+
+// Shift a single window by its per-day offset, anchored to `dateKey` (the
+// local calendar date the window *starts* on). Both edges move by the same
+// amount so the window length is preserved.
+const jitterWindow = (
+  w: Win,
+  dateKey: string,
+  day: Weekday,
+  jitterMinutes: number,
+): Win => {
+  if (jitterMinutes <= 0) return w;
+  const offset = jitterOffset(dateKey, day, jitterMinutes);
+  return {
+    start: formatHHMM(parseHHMM(w.start) + offset),
+    end: formatHHMM(parseHHMM(w.end) + offset),
+  };
+};
+
 /**
  * Apply a deterministic per-day jitter to each weekday window. Both start and
  * end are shifted by the same per-day random offset in [-jitterMinutes,
@@ -71,14 +97,12 @@ export const jitterSchedule = (
   for (const day of Object.keys(schedule.windows) as Weekday[]) {
     const w = schedule.windows[day];
     if (!w) continue;
-    const offset = Math.round((seededFloat(`${date}:${day}`) * 2 - 1) * jitterMinutes);
-    nextWindows[day] = {
-      start: formatHHMM(parseHHMM(w.start) + offset),
-      end: formatHHMM(parseHHMM(w.end) + offset),
-    };
+    nextWindows[day] = jitterWindow(w, date, day, jitterMinutes);
   }
   return { ...schedule, windows: nextWindows };
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -145,12 +169,18 @@ const DAY_BEFORE: Record<Weekday, Weekday> = {
  * after auto-migration: each day's overnight window naturally extends into the
  * following morning, even when day-specific windows differ.
  */
-export const isInWindow = (epochMs: number, schedule: ScheduleConfig): boolean => {
+export const isInWindow = (
+  epochMs: number,
+  schedule: ScheduleConfig,
+  jitterMinutes = 0,
+): boolean => {
   const tz = schedule.timezone;
   const nowMin = minutesInTimezone(epochMs, tz);
   const today = weekdayIn(epochMs, tz);
-  const todayWin = schedule.windows[today];
-  if (todayWin) {
+  const todayWinRaw = schedule.windows[today];
+  if (todayWinRaw) {
+    // Today's window jitter is anchored to today's local date.
+    const todayWin = jitterWindow(todayWinRaw, dateKeyInTz(epochMs, tz), today, jitterMinutes);
     const s = parseHHMM(todayWin.start);
     const e = parseHHMM(todayWin.end);
     if (s !== e) {
@@ -162,10 +192,19 @@ export const isInWindow = (epochMs: number, schedule: ScheduleConfig): boolean =
       }
     }
   }
-  // Yesterday's overnight window may extend into today's morning.
+  // Yesterday's overnight window may extend into today's morning. Its jitter
+  // must use *yesterday's* date so the spillover end matches the offset the
+  // pre-midnight half was shifted by — otherwise the effective window length
+  // jumps at midnight and the bot stops a few minutes early/late.
   const yesterday = DAY_BEFORE[today];
-  const yesterdayWin = schedule.windows[yesterday];
-  if (yesterdayWin) {
+  const yesterdayWinRaw = schedule.windows[yesterday];
+  if (yesterdayWinRaw) {
+    const yesterdayWin = jitterWindow(
+      yesterdayWinRaw,
+      dateKeyInTz(epochMs - DAY_MS, tz),
+      yesterday,
+      jitterMinutes,
+    );
     const s = parseHHMM(yesterdayWin.start);
     const e = parseHHMM(yesterdayWin.end);
     if (s > e && nowMin < e) return true;
@@ -194,14 +233,14 @@ export class ScheduleRunner {
   }
 
   /**
-   * Schedule used for the current evaluation tick: raw config, optionally
-   * shifted by `safety.scheduleJitterMinutes` so start/end edges don't fire
-   * at the same wall-clock minute every day.
+   * Whether the bot should be running now, applying `safety.scheduleJitterMinutes`
+   * per-day so start/end edges don't fire at the same wall-clock minute every
+   * day. Jitter is evaluated inside isInWindow so overnight spillover stays
+   * anchored to the window's own start date.
    */
-  private effectiveSchedule(): ScheduleConfig {
+  private inWindowNow(): boolean {
     const jitter = this.safety?.scheduleJitterMinutes ?? 0;
-    if (jitter <= 0) return this.schedule;
-    return jitterSchedule(this.schedule, this.now(), jitter);
+    return isInWindow(this.now(), this.schedule, jitter);
   }
 
   async start(): Promise<void> {
@@ -243,7 +282,7 @@ export class ScheduleRunner {
   async tick(): Promise<void> {
     if (!this.started) return;
     if (!this.schedule.enabled) return;
-    const inWindow = isInWindow(this.now(), this.effectiveSchedule());
+    const inWindow = this.inWindowNow();
     if (this.lastInWindow === null) {
       // No prior reference state — treat this tick as the hard reconcile.
       this.lastInWindow = inWindow;
@@ -260,7 +299,7 @@ export class ScheduleRunner {
       this.lastInWindow = null;
       return;
     }
-    const inWindow = isInWindow(this.now(), this.effectiveSchedule());
+    const inWindow = this.inWindowNow();
     this.lastInWindow = inWindow;
     await this.applyState(inWindow);
   }

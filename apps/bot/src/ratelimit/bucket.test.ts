@@ -64,6 +64,15 @@ describe('TokenBucket', () => {
     expect(b.available()).toBeGreaterThanOrEqual(10 - 1e-6);
   });
 
+  it('update() recomputes refill rate when only capacity changes', () => {
+    const clock = makeClock();
+    const b = new TokenBucket({ capacity: 10, refillWindowMs: 1000, now: clock.now });
+    for (let i = 0; i < 10; i++) b.tryConsume(); // drain
+    b.update({ capacity: 20 }); // same window, double capacity
+    clock.advance(1000); // one full window must refill to the new capacity
+    expect(b.available()).toBeGreaterThanOrEqual(20 - 1e-6);
+  });
+
   it('update() rejects invalid values', () => {
     const b = new TokenBucket({ capacity: 5, refillWindowMs: 1000 });
     expect(() => b.update({ capacity: 0 })).toThrow();

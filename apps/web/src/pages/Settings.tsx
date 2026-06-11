@@ -534,7 +534,7 @@ const FormView = ({ config, onChange }: FormViewProps): JSX.Element => {
           />
           <LabeledNumber
             label="Max streams"
-            help="Upper bound on channels the bot tracks at any time. Higher = more chat presence, but also more rate-limit pressure on the account. Default 20."
+            help="Upper bound on channels the bot tracks at any time. Higher = more chat presence, but also more rate-limit pressure on the account. Default 10."
             value={config.discovery.maxStreams}
             min={1}
             max={100}

@@ -65,7 +65,7 @@ export const useSevenTvStore = create<SevenTvState>()(
         if (isFresh(s.global, Date.now())) return;
         set({ inflightGlobal: true });
         try {
-          const r = await fetch(SEVENTV_GLOBAL_URL);
+          const r = await fetch(SEVENTV_GLOBAL_URL, { signal: AbortSignal.timeout(8_000) });
           if (!r.ok) throw new Error(`7tv global ${r.status}`);
           const data = (await r.json()) as SevenTvGlobalResponse;
           set({
@@ -88,7 +88,9 @@ export const useSevenTvStore = create<SevenTvState>()(
           inflightChannels: { ...state.inflightChannels, [key]: true },
         }));
         try {
-          const r = await fetch(SEVENTV_CHANNEL_URL(twitchUserId));
+          const r = await fetch(SEVENTV_CHANNEL_URL(twitchUserId), {
+            signal: AbortSignal.timeout(8_000),
+          });
           let byName: Record<string, SevenTvEmote> = {};
           if (r.ok) {
             const data = (await r.json()) as SevenTvChannelResponse;

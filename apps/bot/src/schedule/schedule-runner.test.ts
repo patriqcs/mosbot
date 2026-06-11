@@ -247,6 +247,51 @@ describe('isInWindow', () => {
   });
 });
 
+describe('isInWindow jitter continuity (overnight windows)', () => {
+  const JITTER = 20;
+  // Mon-only overnight window, Mon 2026-05-18 22:00 -> Tue 06:00 UTC.
+  const s = sched({ windows: { mon: { start: '22:00', end: '06:00' } } });
+  const SCAN_START = Date.parse('2026-05-18T21:30:00Z');
+  const SCAN_END = Date.parse('2026-05-19T07:00:00Z');
+  const MIN = 60_000;
+
+  // Find the single rising and falling edge of `inWin` across the scan range.
+  const edges = (inWin: (t: number) => boolean): { start: number; end: number } => {
+    let start = -1;
+    let end = -1;
+    let prev = false;
+    for (let t = SCAN_START; t <= SCAN_END; t += MIN) {
+      const cur = inWin(t);
+      if (cur && !prev) start = t;
+      if (!cur && prev) end = t;
+      prev = cur;
+    }
+    return { start, end };
+  };
+
+  it('OLD pre-jitter composition distorts the overnight window length', async () => {
+    const { jitterSchedule } = await import('./schedule-runner.js');
+    // Reproduces the previous production path: jitter the whole schedule with
+    // the *current tick* date, then evaluate. After midnight the spillover half
+    // is seeded with Tue's date, so start and end shift by different offsets.
+    const { start, end } = edges((t) => isInWindow(t, jitterSchedule(s, t, JITTER)));
+    const lengthMin = (end - start) / MIN;
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(0);
+    // The true window is exactly 8h = 480 min; the bug makes it deviate.
+    expect(lengthMin).not.toBe(480);
+  });
+
+  it('jitter-aware isInWindow shifts the window yet preserves its 480 min length', () => {
+    const { start, end } = edges((t) => isInWindow(t, s, JITTER));
+    const lengthMin = (end - start) / MIN;
+    // Jitter is actually applied (start moved off the exact 22:00 boundary)...
+    expect(start).not.toBe(Date.parse('2026-05-18T22:00:00Z'));
+    // ...and start/end shift by the SAME per-day offset, so length stays 480.
+    expect(lengthMin).toBe(480);
+  });
+});
+
 describe('jitterSchedule', () => {
   it('returns the input unchanged when jitterMinutes is 0', async () => {
     const { jitterSchedule } = await import('./schedule-runner.js');

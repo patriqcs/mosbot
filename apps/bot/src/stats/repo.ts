@@ -66,9 +66,11 @@ export class StatsRepo {
   }
 
   recordPlay(account: string, channel: string): void {
+    // Twitch channels are case-insensitive; store lower-cased so playsForChannel
+    // (which lower-cases its query) and topChannels' GROUP BY stay consistent.
     this.db
       .prepare('INSERT INTO plays_sent (account, channel, at) VALUES (?, ?, ?)')
-      .run(account, channel, Date.now());
+      .run(account, channel.toLowerCase(), Date.now());
   }
 
   recordLobby(channel: string, distinctUsers: number): void {
@@ -166,18 +168,23 @@ export class StatsRepo {
       .prepare('SELECT COUNT(*) AS c FROM chat_messages WHERE at >= ?')
       .get(since) as { c: number };
 
+    // Prepare each bucket statement once and reuse across the loop, instead of
+    // re-preparing 3 statements per bucket (up to ~30 buckets => ~90 prepares).
+    const playsStmt = this.db.prepare(
+      'SELECT COUNT(*) AS c FROM plays_sent WHERE at >= ? AND at < ?',
+    );
+    const lobbiesStmt = this.db.prepare(
+      'SELECT COUNT(*) AS c FROM lobbies_detected WHERE at >= ? AND at < ?',
+    );
+    const chatStmt = this.db.prepare(
+      'SELECT COUNT(*) AS c FROM chat_messages WHERE at >= ? AND at < ?',
+    );
     const buckets: StatsResponse['buckets'] = [];
     for (let t = since; t < Date.now(); t += bucketMs) {
       const to = t + bucketMs;
-      const p = this.db
-        .prepare('SELECT COUNT(*) AS c FROM plays_sent WHERE at >= ? AND at < ?')
-        .get(t, to) as { c: number };
-      const l = this.db
-        .prepare('SELECT COUNT(*) AS c FROM lobbies_detected WHERE at >= ? AND at < ?')
-        .get(t, to) as { c: number };
-      const m = this.db
-        .prepare('SELECT COUNT(*) AS c FROM chat_messages WHERE at >= ? AND at < ?')
-        .get(t, to) as { c: number };
+      const p = playsStmt.get(t, to) as { c: number };
+      const l = lobbiesStmt.get(t, to) as { c: number };
+      const m = chatStmt.get(t, to) as { c: number };
       buckets.push({
         at: new Date(t).toISOString(),
         plays: p.c,
