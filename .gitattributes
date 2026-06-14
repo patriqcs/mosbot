@@ -1,0 +1,2 @@
+# Verhindert CRLF-Schaden bei Windows-Transfers
+* text=auto eol=lf
