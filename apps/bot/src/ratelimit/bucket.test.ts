@@ -73,6 +73,17 @@ describe('TokenBucket', () => {
     expect(b.available()).toBeGreaterThanOrEqual(20 - 1e-6);
   });
 
+  it('update() credits tokens accrued at the OLD rate before changing it', () => {
+    const clock = makeClock();
+    const b = new TokenBucket({ capacity: 16, refillWindowMs: 30_000, now: clock.now });
+    for (let i = 0; i < 16; i++) b.tryConsume(); // drain to 0 at t=0
+    clock.advance(30_000); // one full window elapses idle -> 16 tokens earned
+    b.update({ refillWindowMs: 300_000 }); // slow down 10x AFTER they were earned
+    // The accrued tokens were settled at the old rate, not repriced at the new
+    // (slower) one, so a full window's worth is available.
+    expect(b.available()).toBeGreaterThanOrEqual(16 - 1e-6);
+  });
+
   it('update() rejects invalid values', () => {
     const b = new TokenBucket({ capacity: 5, refillWindowMs: 1000 });
     expect(() => b.update({ capacity: 0 })).toThrow();

@@ -103,6 +103,16 @@ CREATE VIEW IF NOT EXISTS top_channels AS
 const runBootstrapMigrations = (sqlite: Database.Database): void => {
   sqlite.exec(BOOTSTRAP_SQL);
   ensureColumn(sqlite, 'marbles_timers', 'skipped', 'INTEGER NOT NULL DEFAULT 0');
+
+  // Versioned one-time data migrations (idempotent via PRAGMA user_version).
+  const version = sqlite.pragma('user_version', { simple: true }) as number;
+  if (version < 1) {
+    // recordPlay now stores channels lower-cased; backfill legacy mixed-case
+    // rows so playsForChannel (lower-cased query) and topChannels' GROUP BY
+    // count them consistently.
+    sqlite.exec('UPDATE plays_sent SET channel = lower(channel) WHERE channel <> lower(channel)');
+    sqlite.pragma('user_version = 1');
+  }
 };
 
 interface PragmaColumn {
@@ -115,9 +125,7 @@ const ensureColumn = (
   column: string,
   definition: string,
 ): void => {
-  const cols = sqlite
-    .prepare(`PRAGMA table_info(${table})`)
-    .all() as PragmaColumn[];
+  const cols = sqlite.prepare(`PRAGMA table_info(${table})`).all() as PragmaColumn[];
   if (cols.some((c) => c.name === column)) return;
   sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 };

@@ -24,7 +24,10 @@ export const createApiServer = async (deps: ApiServerDeps): Promise<FastifyInsta
   const app = Fastify({
     logger: deps.logger,
     bodyLimit: 1_048_576,
-    trustProxy: true,
+    // Only trust X-Forwarded-* when the operator opts in (behind a reverse
+    // proxy). Default false so req.ip is the real socket peer and the login
+    // throttle can't be bypassed by spoofing X-Forwarded-For.
+    trustProxy: deps.config.server.trustProxy,
   });
 
   await app.register(fastifyCookie);
@@ -45,7 +48,7 @@ export const createApiServer = async (deps: ApiServerDeps): Promise<FastifyInsta
 
   registerAuthRoutes(app, { server: deps.config.server });
   registerApiRoutes(app, deps);
-  registerWebsocket(app, deps);
+  registerWebsocket(app, { bus: deps.bus, allowedOrigins: deps.config.server.allowedOrigins });
 
   const publicDir = resolve(__dirname, '..', '..', 'public');
   if (existsSync(publicDir)) {
@@ -65,7 +68,6 @@ export const createApiServer = async (deps: ApiServerDeps): Promise<FastifyInsta
   return app;
 };
 
-export const publicDirPath = (): string =>
-  resolve(__dirname, '..', '..', 'public');
+export const publicDirPath = (): string => resolve(__dirname, '..', '..', 'public');
 
 export const viteIndexPath = (): string => join(publicDirPath(), 'index.html');

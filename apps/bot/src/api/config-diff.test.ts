@@ -18,6 +18,8 @@ const baseConfig: AppConfig = {
   server: {
     host: '0.0.0.0',
     port: 8787,
+    trustProxy: false,
+    allowedOrigins: [],
     auth: { username: 'admin', passwordHash: 'hash' },
   },
   logging: { level: 'info', rotateDays: 14, chatLog: true, chatLogRetentionDays: 14 },

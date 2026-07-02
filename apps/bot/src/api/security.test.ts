@@ -24,6 +24,10 @@ describe('isAllowedOrigin', () => {
   it('allows a same-host origin on a different port', () => {
     expect(isAllowedOrigin('http://192.168.1.10:5173', '192.168.1.10:8787')).toBe(true);
   });
+  it('allows a same-host IPv6 literal origin (bracketed host header)', () => {
+    expect(isAllowedOrigin('http://[::1]:5173', '[::1]:8787')).toBe(true);
+    expect(isAllowedOrigin('http://[2001:db8::1]', '[2001:db8::1]:8787')).toBe(true);
+  });
   it('rejects a foreign origin', () => {
     expect(isAllowedOrigin('http://evil.example', '192.168.1.10:8787')).toBe(false);
   });

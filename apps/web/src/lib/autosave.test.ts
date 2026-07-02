@@ -32,7 +32,7 @@ describe('AutoSaveController', () => {
     await vi.advanceTimersByTimeAsync(500);
     await vi.runAllTimersAsync();
     expect(save).toHaveBeenCalledOnce();
-    expect(save).toHaveBeenCalledWith('d');
+    expect(save).toHaveBeenCalledWith('d', expect.any(AbortSignal));
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
@@ -115,10 +115,10 @@ describe('AutoSaveController', () => {
     c.setRaw('v1');
     await vi.advanceTimersByTimeAsync(500);
     await vi.runAllTimersAsync();
-    expect(save).toHaveBeenCalledWith('v1');
+    expect(save).toHaveBeenCalledWith('v1', expect.any(AbortSignal));
 
     await c.undo('v0');
-    expect(save).toHaveBeenCalledWith('v0');
+    expect(save).toHaveBeenCalledWith('v0', expect.any(AbortSignal));
     expect(save).toHaveBeenCalledTimes(2);
     expect(onSaved).toHaveBeenLastCalledWith(expect.anything(), 'v1', 'v0');
   });

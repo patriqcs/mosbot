@@ -26,13 +26,6 @@ export const parseHHMM = (hhmm: string): number => {
   return Number(h) * 60 + Number(m);
 };
 
-const formatHHMM = (mins: number): string => {
-  const wrapped = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
-  const h = Math.floor(wrapped / 60);
-  const m = wrapped % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-
 const dateKeyInTz = (epochMs: number, timezone: string): string => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -42,6 +35,17 @@ const dateKeyInTz = (epochMs: number, timezone: string): string => {
   }).formatToParts(new Date(epochMs));
   const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+// The calendar day before `dateKey` (YYYY-MM-DD), computed purely from the date
+// string so it is DST-safe — unlike subtracting 24h of epoch time, which on the
+// morning after a spring-forward lands two calendar days back.
+const prevDateKey = (dateKey: string): string => {
+  const [y, m, d] = dateKey.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
 };
 
 // FNV-1a string hash → float in [0, 1). Deterministic across processes.
@@ -57,52 +61,6 @@ const seededFloat = (seed: string): number => {
 // Deterministic per-(date, weekday) offset in [-jitterMinutes, +jitterMinutes].
 const jitterOffset = (dateKey: string, day: Weekday, jitterMinutes: number): number =>
   Math.round((seededFloat(`${dateKey}:${day}`) * 2 - 1) * jitterMinutes);
-
-interface Win {
-  start: string;
-  end: string;
-}
-
-// Shift a single window by its per-day offset, anchored to `dateKey` (the
-// local calendar date the window *starts* on). Both edges move by the same
-// amount so the window length is preserved.
-const jitterWindow = (
-  w: Win,
-  dateKey: string,
-  day: Weekday,
-  jitterMinutes: number,
-): Win => {
-  if (jitterMinutes <= 0) return w;
-  const offset = jitterOffset(dateKey, day, jitterMinutes);
-  return {
-    start: formatHHMM(parseHHMM(w.start) + offset),
-    end: formatHHMM(parseHHMM(w.end) + offset),
-  };
-};
-
-/**
- * Apply a deterministic per-day jitter to each weekday window. Both start and
- * end are shifted by the same per-day random offset in [-jitterMinutes,
- * +jitterMinutes], so window length stays constant — only the wall-clock
- * position drifts. The offset is stable for the entire local-day in `timezone`.
- */
-export const jitterSchedule = (
-  schedule: ScheduleConfig,
-  epochMs: number,
-  jitterMinutes: number,
-): ScheduleConfig => {
-  if (jitterMinutes <= 0) return schedule;
-  const date = dateKeyInTz(epochMs, schedule.timezone);
-  const nextWindows: ScheduleConfig['windows'] = {};
-  for (const day of Object.keys(schedule.windows) as Weekday[]) {
-    const w = schedule.windows[day];
-    if (!w) continue;
-    nextWindows[day] = jitterWindow(w, date, day, jitterMinutes);
-  }
-  return { ...schedule, windows: nextWindows };
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -177,37 +135,38 @@ export const isInWindow = (
   const tz = schedule.timezone;
   const nowMin = minutesInTimezone(epochMs, tz);
   const today = weekdayIn(epochMs, tz);
-  const todayWinRaw = schedule.windows[today];
-  if (todayWinRaw) {
-    // Today's window jitter is anchored to today's local date.
-    const todayWin = jitterWindow(todayWinRaw, dateKeyInTz(epochMs, tz), today, jitterMinutes);
+  const todayKey = dateKeyInTz(epochMs, tz);
+  const offsetFor = (dateKey: string, day: Weekday): number =>
+    jitterMinutes > 0 ? jitterOffset(dateKey, day, jitterMinutes) : 0;
+
+  // Today's window, anchored to today's local midnight (the nowMin frame). The
+  // jitter offset shifts both edges equally in absolute-minute space; we do NOT
+  // reclassify same-day vs overnight from the shifted HH:MM — that would flip a
+  // near-midnight window and move the whole active period by ~24h.
+  const todayWin = schedule.windows[today];
+  if (todayWin) {
     const s = parseHHMM(todayWin.start);
     const e = parseHHMM(todayWin.end);
     if (s !== e) {
-      if (s < e) {
-        if (nowMin >= s && nowMin < e) return true;
-      } else if (nowMin >= s) {
-        // overnight, pre-midnight portion of today's window
-        return true;
-      }
+      const o = offsetFor(todayKey, today);
+      const eAbs = e > s ? e : e + 1440; // overnight window ends next day
+      if (nowMin >= s + o && nowMin < eAbs + o) return true;
     }
   }
-  // Yesterday's overnight window may extend into today's morning. Its jitter
-  // must use *yesterday's* date so the spillover end matches the offset the
-  // pre-midnight half was shifted by — otherwise the effective window length
-  // jumps at midnight and the bot stops a few minutes early/late.
+  // Yesterday's window may extend into today's morning. Its offset uses
+  // yesterday's date (DST-safe via prevDateKey) so the spillover end matches the
+  // offset the pre-midnight half was shifted by — no window-length jump at
+  // midnight. The current instant is nowMin + 1440 in yesterday's frame.
   const yesterday = DAY_BEFORE[today];
-  const yesterdayWinRaw = schedule.windows[yesterday];
-  if (yesterdayWinRaw) {
-    const yesterdayWin = jitterWindow(
-      yesterdayWinRaw,
-      dateKeyInTz(epochMs - DAY_MS, tz),
-      yesterday,
-      jitterMinutes,
-    );
+  const yesterdayWin = schedule.windows[yesterday];
+  if (yesterdayWin) {
     const s = parseHHMM(yesterdayWin.start);
     const e = parseHHMM(yesterdayWin.end);
-    if (s > e && nowMin < e) return true;
+    if (s !== e) {
+      const o = offsetFor(prevDateKey(todayKey), yesterday);
+      const eAbs = e > s ? e : e + 1440;
+      if (nowMin + 1440 >= s + o && nowMin + 1440 < eAbs + o) return true;
+    }
   }
   return false;
 };

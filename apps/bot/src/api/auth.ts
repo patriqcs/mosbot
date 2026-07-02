@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ServerConfig } from '@mosbot/shared';
@@ -13,15 +12,6 @@ declare module 'fastify' {
 export interface AuthRoutesDeps {
   server: ServerConfig;
 }
-
-// A real argon2 hash of a random secret, verified against on every failed
-// username so login latency does not reveal whether the username exists
-// (user enumeration via timing).
-let dummyHashPromise: Promise<string> | null = null;
-const getDummyHash = (): Promise<string> => {
-  dummyHashPromise ??= argon2.hash(randomBytes(32).toString('hex'));
-  return dummyHashPromise;
-};
 
 export const registerAuthRoutes = (app: FastifyInstance, deps: AuthRoutesDeps): void => {
   // Throttle brute-force/credential-stuffing on the single admin password.
@@ -46,12 +36,15 @@ export const registerAuthRoutes = (app: FastifyInstance, deps: AuthRoutesDeps): 
         return reply.code(400).send({ success: false, data: null, error: 'missing credentials' });
       }
 
-      // Always run a full argon2 verify (against a dummy hash for unknown
-      // usernames) and a constant-time username compare, so success and
-      // failure take the same time regardless of which field was wrong.
+      // Always verify the *real* passwordHash and run a constant-time username
+      // compare, so success and failure take the same time regardless of which
+      // field was wrong (no user enumeration via timing). Verifying the real
+      // hash for unknown usernames too keeps argon2's cost params identical on
+      // both paths — the hash's own embedded params govern verify latency.
       const userOk = safeStringEqual(username, deps.server.auth.username);
-      const hashToVerify = userOk ? deps.server.auth.passwordHash : await getDummyHash();
-      const passOk = await argon2.verify(hashToVerify, password).catch(() => false);
+      const passOk = await argon2
+        .verify(deps.server.auth.passwordHash, password)
+        .catch(() => false);
 
       if (!userOk || !passOk) {
         throttle.recordFailure(ip);
@@ -77,10 +70,7 @@ export const registerAuthRoutes = (app: FastifyInstance, deps: AuthRoutesDeps): 
   });
 };
 
-export const requireAuth = async (
-  req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> => {
+export const requireAuth = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
   if (!req.session.user) {
     await reply.code(401).send({ success: false, data: null, error: 'unauthenticated' });
   }

@@ -92,6 +92,7 @@ export const api = {
   },
   saveConfig: async (
     raw: string,
+    signal?: AbortSignal,
   ): Promise<{
     restartRequired: boolean;
     restartRequiredSections: string[];
@@ -103,6 +104,7 @@ export const api = {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ raw }),
+      signal: signal ?? null,
     });
     return unwrap(res);
   },

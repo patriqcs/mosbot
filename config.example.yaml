@@ -2,17 +2,17 @@
 # All ${VAR} tokens are substituted from environment variables at load time.
 
 discovery:
-  intervalMinutes: 3        # how often to poll Twitch Helix for live MOS streams
-  maxStreams: 10            # upper bound on channels we track at any time
-  minViewers: 30            # skip streams below this viewer count
-  maxViewers: null          # skip streams above this viewer count; null = no cap
-  language: null            # ISO code(s) — "en", "de", or CSV "de,en"; null = any
-  sortBy: most-viewers      # "most-viewers" (default) or "least-viewers"
+  intervalMinutes: 3 # how often to poll Twitch Helix for live MOS streams
+  maxStreams: 10 # upper bound on channels we track at any time
+  minViewers: 30 # skip streams below this viewer count
+  maxViewers: null # skip streams above this viewer count; null = no cap
+  language: null # ISO code(s) — "en", "de", or CSV "de,en"; null = any
+  sortBy: most-viewers # "most-viewers" (default) or "least-viewers"
 
 lobby:
-  windowSeconds: 30         # rolling window for distinct !play messages
-  minPlayers: 4             # distinct other users required to trigger our !play
-  cooldownSeconds: 180      # per-channel cooldown after we send !play
+  windowSeconds: 30 # rolling window for distinct !play messages
+  minPlayers: 4 # distinct other users required to trigger our !play
+  cooldownSeconds: 180 # per-channel cooldown after we send !play
 
 ratelimit:
   # Twitch caps user-level chat at 20 msgs / 30 s. We leave a safety margin so
@@ -44,15 +44,23 @@ accounts:
 server:
   host: 0.0.0.0
   port: 8787
+  # Trust X-Forwarded-* headers (client IP / HTTPS detection). Keep false when
+  # the bot is reachable directly, so the login brute-force throttle can't be
+  # bypassed by a spoofed X-Forwarded-For. Set to true (or a proxy IP/CIDR)
+  # only when running behind a reverse proxy that terminates TLS.
+  trustProxy: false
+  # Extra browser origins allowed to open the live event stream, besides
+  # same-host. Only needed if the dashboard is served from a different origin.
+  allowedOrigins: []
   auth:
     username: admin
     passwordHash: ${DASHBOARD_PASSWORD_HASH}
 
 logging:
-  level: info                   # trace | debug | info | warn | error
-  rotateDays: 14                # log-file rotation (pino-roll)
-  chatLog: true                 # persist observed chat messages to SQLite
-  chatLogRetentionDays: 14      # prune chat rows older than this each hour
+  level: info # trace | debug | info | warn | error
+  rotateDays: 14 # log-file rotation (pino-roll)
+  chatLog: true # persist observed chat messages to SQLite
+  chatLogRetentionDays: 14 # prune chat rows older than this each hour
 
 # Schedule (Zeitschaltuhr): per-day time windows. The bot only runs on weekdays
 # that are present in `windows`, inside the specified HH:MM range. Days omitted
@@ -63,25 +71,25 @@ logging:
 # radar; running 24/7 dramatically increases the risk of in-game bans.
 schedule:
   enabled: true
-  timezone: "UTC"                # IANA name, e.g. "Europe/Berlin"
+  timezone: 'UTC' # IANA name, e.g. "Europe/Berlin"
   windows:
-    mon: { start: "12:00", end: "16:00" }
-    tue: { start: "12:00", end: "16:00" }
-    wed: { start: "12:00", end: "16:00" }
-    thu: { start: "12:00", end: "16:00" }
-    fri: { start: "12:00", end: "16:00" }
-    sat: { start: "12:00", end: "16:00" }
-    sun: { start: "12:00", end: "16:00" }
+    mon: { start: '12:00', end: '16:00' }
+    tue: { start: '12:00', end: '16:00' }
+    wed: { start: '12:00', end: '16:00' }
+    thu: { start: '12:00', end: '16:00' }
+    fri: { start: '12:00', end: '16:00' }
+    sat: { start: '12:00', end: '16:00' }
+    sun: { start: '12:00', end: '16:00' }
 
 # Anti-detection knobs. Lower probability + more jitter = harder to fingerprint
 # as a bot, at the cost of fewer plays per session.
 safety:
   preSendJitterMs:
-    min: 1500           # random delay between lobby detection and !play (lower bound)
-    max: 6000           # upper bound; both in milliseconds
-  playProbability: 0.8  # 0..1; 0.8 = skip ~20% of detected lobbies on purpose
-  scheduleJitterMinutes: 5  # ±N minutes of random offset on each day's start/end
-  maxPlaysPerDay: 40    # hard cap per account; 0 = unlimited
+    min: 1500 # random delay between lobby detection and !play (lower bound)
+    max: 6000 # upper bound; both in milliseconds
+  playProbability: 0.8 # 0..1; 0.8 = skip ~20% of detected lobbies on purpose
+  scheduleJitterMinutes: 5 # ±N minutes of random offset on each day's start/end
+  maxPlaysPerDay: 40 # hard cap per account; 0 = unlimited
 
 database:
   path: /data/mosbot.db

@@ -63,7 +63,10 @@ export const ChannelsConfig = z.object({
 });
 
 export const AccountConfig = z.object({
-  name: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/),
+  name: z
+    .string()
+    .min(1)
+    .regex(/^[a-zA-Z0-9_-]+$/),
   enabled: z.boolean().default(true),
   clientId: z.string().min(1),
 });
@@ -71,6 +74,14 @@ export const AccountConfig = z.object({
 export const ServerConfig = z.object({
   host: z.string().default('0.0.0.0'),
   port: z.number().int().min(1).max(65535).default(8787),
+  // Whether to trust X-Forwarded-* headers for req.ip / req.protocol. Leave
+  // `false` for a directly-exposed deployment (so req.ip is the real socket
+  // peer and the login throttle can't be bypassed by spoofing the header).
+  // Set `true` or a proxy IP/CIDR only when running behind a reverse proxy.
+  trustProxy: z.union([z.boolean(), z.string()]).default(false),
+  // Extra browser origins allowed to open the WebSocket event stream, besides
+  // same-host. Needed when the dashboard is served from a different origin.
+  allowedOrigins: z.array(z.string()).default([]),
   auth: z.object({
     username: z.string().min(1).default('admin'),
     passwordHash: z.string().min(1),
@@ -122,17 +133,12 @@ export const TimeWindow = z
   });
 export type TimeWindow = z.infer<typeof TimeWindow>;
 
-const ScheduleWindows = z
-  .record(Weekday, TimeWindow)
-  .refine((o) => Object.keys(o).length >= 1, {
-    message: 'windows must contain at least one day',
-  });
+const ScheduleWindows = z.record(Weekday, TimeWindow).refine((o) => Object.keys(o).length >= 1, {
+  message: 'windows must contain at least one day',
+});
 
 const buildAllDayWindows = (start: string, end: string): Record<Weekday, TimeWindow> =>
-  Object.fromEntries(WEEKDAYS.map((d) => [d, { start, end }])) as Record<
-    Weekday,
-    TimeWindow
-  >;
+  Object.fromEntries(WEEKDAYS.map((d) => [d, { start, end }])) as Record<Weekday, TimeWindow>;
 
 export const ScheduleConfig = z
   .object({

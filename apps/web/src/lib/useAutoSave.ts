@@ -31,7 +31,7 @@ export interface UseAutoSaveResult {
  */
 export const useAutoSave = (
   initialRaw: string,
-  save: (raw: string) => Promise<SaveResult>,
+  save: (raw: string, signal: AbortSignal) => Promise<SaveResult>,
   options?: { debounceMs?: number; validate?: (raw: string) => string | null },
 ): UseAutoSaveResult => {
   const debounceMs = options?.debounceMs ?? 500;
@@ -48,7 +48,7 @@ export const useAutoSave = (
     const c = new AutoSaveController({
       initialRaw,
       debounceMs,
-      save: (next) => saveRef.current(next),
+      save: (next, signal) => saveRef.current(next, signal),
       validate: (next) => validateRef.current?.(next) ?? null,
       onSaved: (result, undoSnapshot) => {
         setError(null);

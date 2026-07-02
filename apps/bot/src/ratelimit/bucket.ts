@@ -24,6 +24,11 @@ export class TokenBucket {
   }
 
   update(opts: Partial<Pick<TokenBucketOptions, 'capacity' | 'refillWindowMs'>>): void {
+    // Settle tokens accrued so far at the CURRENT rate before changing it,
+    // otherwise the whole un-refilled interval would be repriced at the new
+    // rate (losing earned tokens when slowing down, over-crediting when
+    // speeding up).
+    this.refill();
     if (opts.capacity !== undefined) {
       if (opts.capacity <= 0) throw new Error('capacity must be > 0');
       this.capacity = opts.capacity;

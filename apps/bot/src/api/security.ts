@@ -38,8 +38,15 @@ export const isAllowedOrigin = (
     return false;
   }
   if (!host) return false;
-  // host header may include a port (e.g. "192.168.1.10:8787")
-  const reqHost = host.split(':')[0];
+  // Parse the Host header the same way (via URL) so ports AND bracketed IPv6
+  // literals are handled: `"[::1]:8787"`.split(':')[0] would be `"["`, whereas
+  // new URL().hostname yields `"[::1]"` on both sides and matches correctly.
+  let reqHost: string;
+  try {
+    reqHost = new URL(`http://${host}`).hostname;
+  } catch {
+    return false;
+  }
   return originHost === reqHost;
 };
 
@@ -56,6 +63,12 @@ export interface LoginThrottleOptions {
  * and blocks once `maxAttempts` is reached until the window elapses. A success
  * clears the key.
  */
+// Above this many tracked keys, sweep out fully-expired keys on the next
+// failure. Bounds memory: `prune` only touches the queried key, so without a
+// global sweep, keys that fail once and never return (e.g. many distinct
+// client IPs) would accumulate forever.
+const MAX_KEYS = 10_000;
+
 export class LoginThrottle {
   private readonly attempts = new Map<string, number[]>();
   private readonly maxAttempts: number;
@@ -81,8 +94,17 @@ export class LoginThrottle {
     return this.prune(key).length >= this.maxAttempts;
   }
 
+  /** Drop every key whose recorded attempts have all expired. */
+  private sweep(): void {
+    const cutoff = this.now() - this.windowMs;
+    for (const [k, ts] of this.attempts) {
+      if (!ts.some((t) => t > cutoff)) this.attempts.delete(k);
+    }
+  }
+
   /** Record a failed attempt. */
   recordFailure(key: string): void {
+    if (this.attempts.size > MAX_KEYS) this.sweep();
     const kept = this.prune(key);
     kept.push(this.now());
     this.attempts.set(key, kept);

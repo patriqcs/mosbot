@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import pino from 'pino';
 import { ScheduleConfig } from '@mosbot/shared';
-import {
-  ScheduleRunner,
-  isInWindow,
-  minutesInTimezone,
-  weekdayIn,
-} from './schedule-runner.js';
+import { ScheduleRunner, isInWindow, minutesInTimezone, weekdayIn } from './schedule-runner.js';
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -21,15 +16,7 @@ const makeOrchestrator = (): {
 // Tuesday 2026-05-19 14:00:00 UTC
 const REF_UTC = Date.parse('2026-05-19T14:00:00Z');
 
-const WEEKDAYS_LIST = [
-  'mon',
-  'tue',
-  'wed',
-  'thu',
-  'fri',
-  'sat',
-  'sun',
-] as const;
+const WEEKDAYS_LIST = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 type WD = (typeof WEEKDAYS_LIST)[number];
 
 interface SchedOverride {
@@ -98,9 +85,15 @@ describe('ScheduleConfig schema', () => {
       start: '08:00',
       end: '22:00',
     });
-    expect(Object.keys(parsed.windows).sort()).toEqual(
-      ['fri', 'mon', 'sat', 'sun', 'thu', 'tue', 'wed'],
-    );
+    expect(Object.keys(parsed.windows).sort()).toEqual([
+      'fri',
+      'mon',
+      'sat',
+      'sun',
+      'thu',
+      'tue',
+      'wed',
+    ]);
     expect(parsed.windows.mon).toEqual({ start: '08:00', end: '22:00' });
     expect(parsed.windows.sun).toEqual({ start: '08:00', end: '22:00' });
   });
@@ -192,9 +185,9 @@ describe('isInWindow', () => {
   it('timezone matters: 08-22 Berlin includes 22:00 UTC summer (=00:00 next-day Berlin, out)', () => {
     // 22:00 UTC May 19 = 00:00 May 20 CEST -> NOT in 08-22 window
     const t = Date.parse('2026-05-19T22:00:00Z');
-    expect(
-      isInWindow(t, sched({ start: '08:00', end: '22:00', timezone: 'Europe/Berlin' })),
-    ).toBe(false);
+    expect(isInWindow(t, sched({ start: '08:00', end: '22:00', timezone: 'Europe/Berlin' }))).toBe(
+      false,
+    );
   });
 
   it('end is exclusive: at exactly 22:00, returns false', () => {
@@ -269,19 +262,6 @@ describe('isInWindow jitter continuity (overnight windows)', () => {
     return { start, end };
   };
 
-  it('OLD pre-jitter composition distorts the overnight window length', async () => {
-    const { jitterSchedule } = await import('./schedule-runner.js');
-    // Reproduces the previous production path: jitter the whole schedule with
-    // the *current tick* date, then evaluate. After midnight the spillover half
-    // is seeded with Tue's date, so start and end shift by different offsets.
-    const { start, end } = edges((t) => isInWindow(t, jitterSchedule(s, t, JITTER)));
-    const lengthMin = (end - start) / MIN;
-    expect(start).toBeGreaterThan(0);
-    expect(end).toBeGreaterThan(0);
-    // The true window is exactly 8h = 480 min; the bug makes it deviate.
-    expect(lengthMin).not.toBe(480);
-  });
-
   it('jitter-aware isInWindow shifts the window yet preserves its 480 min length', () => {
     const { start, end } = edges((t) => isInWindow(t, s, JITTER));
     const lengthMin = (end - start) / MIN;
@@ -292,38 +272,40 @@ describe('isInWindow jitter continuity (overnight windows)', () => {
   });
 });
 
-describe('jitterSchedule', () => {
-  it('returns the input unchanged when jitterMinutes is 0', async () => {
-    const { jitterSchedule } = await import('./schedule-runner.js');
-    const s = sched({ windows: { mon: { start: '12:00', end: '16:00' } } });
-    expect(jitterSchedule(s, REF_UTC, 0)).toEqual(s);
+describe('isInWindow jitter near midnight (no classification flip)', () => {
+  it('keeps a 00:00-08:00 window active on its own morning under any jitter', () => {
+    // The start sits within the jitter band of midnight; it must NOT flip into
+    // an overnight window (which would move the active period by ~24h).
+    const s = sched({ windows: { mon: { start: '00:00', end: '08:00' } } });
+    const t = Date.parse('2026-05-18T04:00:00Z'); // Mon 04:00 UTC, inside window
+    for (let j = 0; j <= 60; j += 5) {
+      expect(isInWindow(t, s, j)).toBe(true);
+    }
   });
 
-  it('produces a deterministic offset for the same (date, weekday)', async () => {
-    const { jitterSchedule } = await import('./schedule-runner.js');
-    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
-    const a = jitterSchedule(s, REF_UTC, 10);
-    const b = jitterSchedule(s, REF_UTC + 5_000, 10); // 5s later, same day
-    expect(a.windows.tue).toEqual(b.windows.tue);
-  });
-
-  it('keeps the window length identical (uniform shift)', async () => {
-    const { jitterSchedule, parseHHMM } = await import('./schedule-runner.js');
-    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
-    const out = jitterSchedule(s, REF_UTC, 30);
-    const w = out.windows.tue!;
-    const lengthIn = 16 * 60 - 12 * 60; // 240 min
-    const lengthOut = parseHHMM(w.end) - parseHHMM(w.start);
-    expect(((lengthOut + 24 * 60) % (24 * 60))).toBe(lengthIn);
-  });
-
-  it('produces different offsets across days', async () => {
-    const { jitterSchedule } = await import('./schedule-runner.js');
-    const s = sched({ windows: { tue: { start: '12:00', end: '16:00' } } });
-    const tueDay1 = jitterSchedule(s, REF_UTC, 30).windows.tue!;
-    const tueDay2 = jitterSchedule(s, REF_UTC + 7 * 24 * 3600 * 1000, 30).windows.tue!;
-    // Highly likely (deterministic) to differ:
-    expect(tueDay1).not.toEqual(tueDay2);
+  it('preserves overnight window length across a DST spring-forward night', () => {
+    // Europe/Berlin springs forward on 2026-03-29; the overnight sun window
+    // 22:00-06:00 spills into Monday 2026-03-30. The spillover offset must use
+    // Sunday's date (not two days back), keeping the length at 480 min.
+    const s = sched({
+      timezone: 'Europe/Berlin',
+      windows: { sun: { start: '22:00', end: '06:00' } },
+    });
+    const MIN2 = 60_000;
+    const from = Date.parse('2026-03-29T19:00:00Z');
+    const to = Date.parse('2026-03-30T07:00:00Z');
+    let start = -1;
+    let end = -1;
+    let prev = false;
+    for (let t = from; t <= to; t += MIN2) {
+      const cur = isInWindow(t, s, 20);
+      if (cur && !prev) start = t;
+      if (!cur && prev) end = t;
+      prev = cur;
+    }
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(0);
+    expect((end - start) / MIN2).toBe(480);
   });
 });
 
@@ -499,9 +481,7 @@ describe('ScheduleRunner', () => {
     expect(orch.start).toHaveBeenCalledOnce();
 
     // Switch to a tz where REF_UTC is in the middle of the night
-    await r.update(
-      sched({ start: '08:00', end: '22:00', timezone: 'Pacific/Honolulu' }),
-    );
+    await r.update(sched({ start: '08:00', end: '22:00', timezone: 'Pacific/Honolulu' }));
     // 14:00 UTC = 04:00 HST (UTC-10) -> out of 08-22 window
     expect(orch.stop).toHaveBeenCalledOnce();
     r.dispose();

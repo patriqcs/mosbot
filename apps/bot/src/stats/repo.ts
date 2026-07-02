@@ -36,8 +36,7 @@ const startOfTodayMs = (timezone: string, now: number = Date.now()): number => {
     const v = parts.find((q) => q.type === type)?.value ?? '0';
     return Number(v === '24' ? '0' : v);
   };
-  const elapsedMs =
-    (pick('hour') * 3600 + pick('minute') * 60 + pick('second')) * 1000;
+  const elapsedMs = (pick('hour') * 3600 + pick('minute') * 60 + pick('second')) * 1000;
   return now - elapsedMs;
 };
 
@@ -59,9 +58,7 @@ export class StatsRepo {
 
   recordChannelAction(account: string, channel: string, action: 'join' | 'part'): void {
     this.db
-      .prepare(
-        'INSERT INTO channels_joined (account, channel, action, at) VALUES (?, ?, ?, ?)',
-      )
+      .prepare('INSERT INTO channels_joined (account, channel, action, at) VALUES (?, ?, ?, ?)')
       .run(account, channel, action, Date.now());
   }
 
@@ -75,32 +72,24 @@ export class StatsRepo {
 
   recordLobby(channel: string, distinctUsers: number): void {
     this.db
-      .prepare(
-        'INSERT INTO lobbies_detected (channel, distinct_users, at) VALUES (?, ?, ?)',
-      )
+      .prepare('INSERT INTO lobbies_detected (channel, distinct_users, at) VALUES (?, ?, ?)')
       .run(channel, distinctUsers, Date.now());
   }
 
   recordChat(channel: string, userLogin: string, text: string): void {
     this.db
-      .prepare(
-        'INSERT INTO chat_messages (channel, user_login, text, at) VALUES (?, ?, ?, ?)',
-      )
+      .prepare('INSERT INTO chat_messages (channel, user_login, text, at) VALUES (?, ?, ?, ?)')
       .run(channel, userLogin, text, Date.now());
   }
 
   recordAuth(account: string, phase: string, message?: string): void {
     this.db
-      .prepare(
-        'INSERT INTO auth_events (account, phase, message, at) VALUES (?, ?, ?, ?)',
-      )
+      .prepare('INSERT INTO auth_events (account, phase, message, at) VALUES (?, ?, ?, ?)')
       .run(account, phase, message ?? null, Date.now());
   }
 
   pruneChatBefore(cutoffMs: number): number {
-    const info = this.db
-      .prepare('DELETE FROM chat_messages WHERE at < ?')
-      .run(cutoffMs);
+    const info = this.db.prepare('DELETE FROM chat_messages WHERE at < ?').run(cutoffMs);
     return info.changes;
   }
 
@@ -123,9 +112,9 @@ export class StatsRepo {
     const plays = this.db.prepare('SELECT COUNT(*) AS c FROM plays_sent').get() as {
       c: number;
     };
-    const lobbies = this.db
-      .prepare('SELECT COUNT(*) AS c FROM lobbies_detected')
-      .get() as { c: number };
+    const lobbies = this.db.prepare('SELECT COUNT(*) AS c FROM lobbies_detected').get() as {
+      c: number;
+    };
     return {
       streamsSeen: streams.c,
       channelsJoined: joined.c,
@@ -168,28 +157,30 @@ export class StatsRepo {
       .prepare('SELECT COUNT(*) AS c FROM chat_messages WHERE at >= ?')
       .get(since) as { c: number };
 
-    // Prepare each bucket statement once and reuse across the loop, instead of
-    // re-preparing 3 statements per bucket (up to ~30 buckets => ~90 prepares).
-    const playsStmt = this.db.prepare(
-      'SELECT COUNT(*) AS c FROM plays_sent WHERE at >= ? AND at < ?',
-    );
-    const lobbiesStmt = this.db.prepare(
-      'SELECT COUNT(*) AS c FROM lobbies_detected WHERE at >= ? AND at < ?',
-    );
-    const chatStmt = this.db.prepare(
-      'SELECT COUNT(*) AS c FROM chat_messages WHERE at >= ? AND at < ?',
-    );
+    // One grouped query per table (bucket index = (at - since) / bucketMs)
+    // instead of ~30 buckets × 3 point queries (~90 executions per request).
+    const now = Date.now();
+    const bucketCounts = (table: string): Map<number, number> => {
+      const rows = this.db
+        .prepare(
+          `SELECT CAST((at - ?) / ? AS INTEGER) AS b, COUNT(*) AS c FROM ${table} WHERE at >= ? AND at < ? GROUP BY b`,
+        )
+        .all(since, bucketMs, since, now) as { b: number; c: number }[];
+      const m = new Map<number, number>();
+      for (const r of rows) m.set(r.b, r.c);
+      return m;
+    };
+    const playsByBucket = bucketCounts('plays_sent');
+    const lobbiesByBucket = bucketCounts('lobbies_detected');
+    const chatByBucket = bucketCounts('chat_messages');
     const buckets: StatsResponse['buckets'] = [];
-    for (let t = since; t < Date.now(); t += bucketMs) {
-      const to = t + bucketMs;
-      const p = playsStmt.get(t, to) as { c: number };
-      const l = lobbiesStmt.get(t, to) as { c: number };
-      const m = chatStmt.get(t, to) as { c: number };
+    let bi = 0;
+    for (let t = since; t < now; t += bucketMs, bi++) {
       buckets.push({
         at: new Date(t).toISOString(),
-        plays: p.c,
-        lobbies: l.c,
-        chatMessages: m.c,
+        plays: playsByBucket.get(bi) ?? 0,
+        lobbies: lobbiesByBucket.get(bi) ?? 0,
+        chatMessages: chatByBucket.get(bi) ?? 0,
       });
     }
 

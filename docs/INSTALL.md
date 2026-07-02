@@ -106,7 +106,7 @@ including every dollar sign.
 ### 4.1 Add the template
 
 1. In the Unraid web UI: **Apps** (the Community Applications plugin
-   must be installed — if not, install it from the *Plugins* tab first).
+   must be installed — if not, install it from the _Plugins_ tab first).
 2. Click the magnifier in the top right, then **Advanced Search** →
    **Template URL**. (Alternative: **Docker → Add Container → Template
    Repositories** and enter the URL below, then search.)
@@ -121,20 +121,20 @@ including every dollar sign.
 
 Unraid shows a form. The important fields:
 
-| Field | Value |
-|---|---|
-| **Name** | `mosbot` (default ok) |
-| **Repository** | `ghcr.io/patriqcs/mosbot:latest` (default ok) |
-| **WebUI Port** | `8787` (or pick a free port if this one is taken) |
-| **Data** | `/mnt/user/appdata/mosbot/data` (default ok) |
-| **Config** | `/mnt/user/appdata/mosbot/config` (default ok) |
-| **Logs** | `/mnt/user/appdata/mosbot/logs` (default ok) |
-| **TWITCH_CLIENT_ID** | Client ID from step 2.2 |
-| **ENCRYPTION_KEY** | base64 string from step 3.1 |
-| **DASHBOARD_PASSWORD_HASH** | `$argon2id$...` string from step 3.2 |
-| **TZ** | `Europe/Berlin` (or your timezone) |
+| Field                       | Value                                             |
+| --------------------------- | ------------------------------------------------- |
+| **Name**                    | `mosbot` (default ok)                             |
+| **Repository**              | `ghcr.io/patriqcs/mosbot:latest` (default ok)     |
+| **WebUI Port**              | `8787` (or pick a free port if this one is taken) |
+| **Data**                    | `/mnt/user/appdata/mosbot/data` (default ok)      |
+| **Config**                  | `/mnt/user/appdata/mosbot/config` (default ok)    |
+| **Logs**                    | `/mnt/user/appdata/mosbot/logs` (default ok)      |
+| **TWITCH_CLIENT_ID**        | Client ID from step 2.2                           |
+| **ENCRYPTION_KEY**          | base64 string from step 3.1                       |
+| **DASHBOARD_PASSWORD_HASH** | `$argon2id$...` string from step 3.2              |
+| **TZ**                      | `Europe/Berlin` (or your timezone)                |
 
-Do **NOT** click *Apply* yet — create `config.yaml` first (step 5).
+Do **NOT** click _Apply_ yet — create `config.yaml` first (step 5).
 
 If you accidentally already clicked Apply: the container starts, then
 crashes with `ENOENT: /config/config.yaml`. Just complete step 5 and
@@ -162,9 +162,9 @@ discovery:
   intervalMinutes: 3
   maxStreams: 10
   minViewers: 30
-  maxViewers: null          # skip streams above this count; null = no cap
-  language: null            # "en", "de", or CSV like "de,en"; null = any
-  sortBy: most-viewers      # "most-viewers" (big streams) or "least-viewers" (small streams)
+  maxViewers: null # skip streams above this count; null = no cap
+  language: null # "en", "de", or CSV like "de,en"; null = any
+  sortBy: most-viewers # "most-viewers" (big streams) or "least-viewers" (small streams)
 
 lobby:
   windowSeconds: 30
@@ -187,6 +187,11 @@ accounts:
 server:
   host: 0.0.0.0
   port: 8787
+  # Set to true (or a proxy IP/CIDR) ONLY behind a reverse proxy that
+  # terminates TLS; leave false when the bot is reachable directly so the
+  # login throttle can't be bypassed via a spoofed X-Forwarded-For.
+  trustProxy: false
+  allowedOrigins: []
   auth:
     username: admin
     passwordHash: ${DASHBOARD_PASSWORD_HASH}
@@ -228,6 +233,7 @@ container is already created but stopped).
 Open in your browser: `http://<unraid-ip>:8787`
 
 Login:
+
 - **Username**: `admin`
 - **Password**: the plaintext password from step 3.2 (not the hash —
   the cleartext password you chose)
@@ -308,6 +314,7 @@ Or enable an existing Unraid backup plugin (CA Appdata Backup / Restore)
 for `/mnt/user/appdata/mosbot/`.
 
 **Also store in your password manager:**
+
 - `TWITCH_CLIENT_ID`
 - `ENCRYPTION_KEY` — without it, the DB backup is useless
 - `DASHBOARD_PASSWORD_HASH` (or the plaintext password)
@@ -320,12 +327,12 @@ for `/mnt/user/appdata/mosbot/`.
 
 **Open the Docker tab → click mosbot → Logs.** Common errors:
 
-| Error | Cause | Fix |
-|---|---|---|
-| `ENOENT: /config/config.yaml` | File not created | Do step 5 |
-| `ENCRYPTION_KEY must be 32 bytes` | Base64 key too short | Regenerate, copy the full output |
-| `DASHBOARD_PASSWORD_HASH invalid` | Only a partial string copied | Paste the full `$argon2id$...` string |
-| `Invalid YAML` | Tabs instead of spaces, or missing `:` | Validate with yamllint.com |
+| Error                             | Cause                                  | Fix                                   |
+| --------------------------------- | -------------------------------------- | ------------------------------------- |
+| `ENOENT: /config/config.yaml`     | File not created                       | Do step 5                             |
+| `ENCRYPTION_KEY must be 32 bytes` | Base64 key too short                   | Regenerate, copy the full output      |
+| `DASHBOARD_PASSWORD_HASH invalid` | Only a partial string copied           | Paste the full `$argon2id$...` string |
+| `Invalid YAML`                    | Tabs instead of spaces, or missing `:` | Validate with yamllint.com            |
 
 ### 9.2 Device Code Flow fails
 

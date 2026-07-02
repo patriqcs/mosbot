@@ -4,12 +4,16 @@ export type WsListener = (ev: BotEvent) => void;
 
 const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 30_000;
+// A connection must stay open at least this long to count as successful and
+// reset the backoff; shorter than this is treated as a failed attempt.
+const STABLE_MS = 10_000;
 
 export class EventStream {
   private socket: WebSocket | null = null;
   private listeners = new Set<WsListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = RECONNECT_BASE_MS;
+  private openedAt: number | null = null;
   private closed = false;
 
   connect(): void {
@@ -26,8 +30,11 @@ export class EventStream {
     const url = `${proto}://${window.location.host}/api/stream`;
     const sock = new WebSocket(url);
     sock.onopen = () => {
-      // Connection succeeded: reset the backoff for the next disconnect.
-      this.reconnectDelay = RECONNECT_BASE_MS;
+      // Record when the handshake completed. The backoff is only reset once the
+      // connection proves STABLE (see onclose) — resetting here would let a
+      // server that accepts then immediately closes (4401 expired session /
+      // 4403 forbidden origin) loop-reconnect every base interval forever.
+      this.openedAt = Date.now();
     };
     sock.onmessage = (msg) => {
       try {
@@ -39,13 +46,17 @@ export class EventStream {
     };
     sock.onclose = () => {
       this.socket = null;
-      if (!this.closed) {
-        const delay = this.reconnectDelay;
-        // Exponential backoff capped at RECONNECT_MAX_MS so an unreachable
-        // server is retried calmly instead of every 2s forever.
-        this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
-        this.reconnectTimer = setTimeout(() => this.connect(), delay);
-      }
+      if (this.closed) return;
+      // Only a connection that stayed open a while counts as "successful" and
+      // resets the backoff; an accept-then-instant-close keeps backing off so a
+      // reachable-but-rejecting server is retried calmly, not every 2s forever.
+      const stable = this.openedAt !== null && Date.now() - this.openedAt >= STABLE_MS;
+      this.openedAt = null;
+      const delay = stable ? RECONNECT_BASE_MS : this.reconnectDelay;
+      this.reconnectDelay = stable
+        ? RECONNECT_BASE_MS
+        : Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
+      this.reconnectTimer = setTimeout(() => this.connect(), delay);
     };
     this.socket = sock;
   }
