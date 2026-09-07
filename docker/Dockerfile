@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Multi-stage build: deps -> build -> runtime. Target < 200 MB final image.
 
-FROM node:20-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
@@ -22,7 +22,7 @@ RUN pnpm -r build
 RUN pnpm deploy --filter=@mosbot/bot --prod /prod/bot
 RUN cp -r apps/web/dist /prod/bot/public
 
-FROM node:20-alpine AS runtime
+FROM node:26-alpine AS runtime
 RUN apk add --no-cache tini
 ENV NODE_ENV=production
 WORKDIR /app
