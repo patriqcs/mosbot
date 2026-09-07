@@ -20,15 +20,21 @@ export interface ApiServerDeps extends ApiRoutesDeps, WsRoutesDeps {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Exported so the boot options can be unit-tested without the full dependency
+// graph: Fastify 5 only accepts a ready logger via `loggerInstance`; passing it
+// as `logger` throws FST_ERR_LOG_INVALID_LOGGER_CONFIG at startup (caught in
+// production with v0.1.31, the bot never came up).
+export const fastifyOptions = (deps: Pick<ApiServerDeps, 'logger' | 'config'>) => ({
+  loggerInstance: deps.logger,
+  bodyLimit: 1_048_576,
+  // Only trust X-Forwarded-* when the operator opts in (behind a reverse
+  // proxy). Default false so req.ip is the real socket peer and the login
+  // throttle can't be bypassed by spoofing X-Forwarded-For.
+  trustProxy: deps.config.server.trustProxy,
+});
+
 export const createApiServer = async (deps: ApiServerDeps): Promise<FastifyInstance> => {
-  const app = Fastify({
-    logger: deps.logger,
-    bodyLimit: 1_048_576,
-    // Only trust X-Forwarded-* when the operator opts in (behind a reverse
-    // proxy). Default false so req.ip is the real socket peer and the login
-    // throttle can't be bypassed by spoofing X-Forwarded-For.
-    trustProxy: deps.config.server.trustProxy,
-  });
+  const app = Fastify(fastifyOptions(deps));
 
   await app.register(fastifyCookie);
   await app.register(fastifySession, {
