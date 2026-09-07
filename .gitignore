@@ -51,3 +51,6 @@ docs/screenshots/*
 !docs/screenshots/.gitkeep
 !docs/screenshots/README.md
 1.png
+
+# Lokale Laufzeit-Konfiguration mit Zugangsdaten (Vorlage: config.example.yaml)
+config.yaml
